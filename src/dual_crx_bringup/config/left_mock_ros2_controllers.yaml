@@ -1,0 +1,46 @@
+/**:
+  ros__parameters:
+    update_rate: 100
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    joint_trajectory_controller:
+      type: fanuc_controllers/ScaledJointTrajectoryController
+
+/**/joint_trajectory_controller:
+  ros__parameters:
+    joints:
+      - left_J1
+      - left_J2
+      - left_J3
+      - left_J4
+      - left_J5
+      - left_J6
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: false
+    constraints:
+      stopped_velocity_tolerance: 0.0
+      goal_time: 0.0
+      left_J1:
+        goal: 0.05
+        trajectory: 0.25
+      left_J2:
+        goal: 0.05
+        trajectory: 0.25
+      left_J3:
+        goal: 0.05
+        trajectory: 0.25
+      left_J4:
+        goal: 0.05
+        trajectory: 0.25
+      left_J5:
+        goal: 0.05
+        trajectory: 0.25
+      left_J6:
+        goal: 0.05
+        trajectory: 0.25

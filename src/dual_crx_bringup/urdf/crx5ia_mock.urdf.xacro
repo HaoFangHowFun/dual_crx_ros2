@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<robot name="crx5ia_mock" xmlns:xacro="http://wiki.ros.org/xacro">
+  <xacro:arg name="prefix" default=""/>
+  <xacro:arg name="parent_link" default="world"/>
+  <xacro:arg name="child_link" default="end_effector"/>
+  <xacro:arg name="origin_xyz" default="0 0 0"/>
+  <xacro:arg name="origin_rpy" default="0 0 0"/>
+  <xacro:arg name="initial_j1" default="0.0"/>
+  <xacro:arg name="initial_j2" default="0.0"/>
+  <xacro:arg name="initial_j3" default="0.0"/>
+  <xacro:arg name="initial_j4" default="0.0"/>
+  <xacro:arg name="initial_j5" default="0.0"/>
+  <xacro:arg name="initial_j6" default="0.0"/>
+
+  <xacro:include filename="$(find fanuc_crx_description)/urdf/crx5ia_urdf_macro.xacro"/>
+
+  <link name="$(arg parent_link)"/>
+  <link name="$(arg child_link)"/>
+  <xacro:crx5ia
+    parent="$(arg parent_link)"
+    child="$(arg child_link)"
+    prefix="$(arg prefix)">
+    <origin xyz="$(arg origin_xyz)" rpy="$(arg origin_rpy)"/>
+  </xacro:crx5ia>
+
+  <ros2_control name="crx5ia" type="system">
+    <hardware>
+      <plugin>mock_components/GenericSystem</plugin>
+      <param name="state_following_offset">0.0</param>
+      <param name="calculate_dynamics">true</param>
+    </hardware>
+
+    <joint name="$(arg prefix)J1">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">$(arg initial_j1)</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="$(arg prefix)J2">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">$(arg initial_j2)</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="$(arg prefix)J3">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">$(arg initial_j3)</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="$(arg prefix)J4">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">$(arg initial_j4)</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="$(arg prefix)J5">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">$(arg initial_j5)</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="$(arg prefix)J6">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">$(arg initial_j6)</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <gpio name="Status">
+      <state_interface name="collaborative_speed_scaling">
+        <param name="initial_value">1.0</param>
+      </state_interface>
+    </gpio>
+  </ros2_control>
+</robot>
