@@ -4,7 +4,7 @@
 #include <string>
 #include <thread>
 
-#include "moveit/move_group_interface/move_group_interface.hpp"
+#include "moveit/move_group_interface/move_group_interface.h"
 #include "rclcpp/rclcpp.hpp"
 
 namespace

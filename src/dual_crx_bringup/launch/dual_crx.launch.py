@@ -224,6 +224,16 @@ def launch_setup(context, *args, **kwargs):
                 ros2_control_config=left_ros2_control_config,
             )
         )
+        launch_items.extend(
+            _mock_arm_nodes(
+                namespace="right_arm",
+                prefix="right_",
+                child_link="right_ee_mount",
+                placement=placement["right_arm"],
+                initial_positions=mock_initial_positions["right_arm"],
+                ros2_control_config=right_ros2_control_config,
+            )
+        )
     else:
         physical_launch = PythonLaunchDescriptionSource(
             PathJoinSubstitution(
@@ -281,16 +291,6 @@ def launch_setup(context, *args, **kwargs):
                     }.items(),
                 ),
             ]
-        )
-        launch_items.extend(
-            _mock_arm_nodes(
-                namespace="right_arm",
-                prefix="right_",
-                child_link="right_ee_mount",
-                placement=placement["right_arm"],
-                initial_positions=mock_initial_positions["right_arm"],
-                ros2_control_config=right_ros2_control_config,
-            )
         )
 
     urdf_file = os.path.join(
