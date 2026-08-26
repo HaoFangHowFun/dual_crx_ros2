@@ -2,7 +2,7 @@
 
 Two FANUC CRX-5iA robots in one ROS 2 / MoveIt environment.
 
-- Mock development: Ubuntu 24.04 / ROS 2 Jazzy
+- Mock development: Ubuntu 22.04 / ROS 2 Humble
 - Physical deployment: Ubuntu 22.04 / ROS 2 Humble
 - Physical-host details: [`docs/physical_bringup_ubuntu22.md`](docs/physical_bringup_ubuntu22.md)
 
@@ -75,7 +75,7 @@ rosdep update
 
 ## 3. Download and build the official FANUC Humble dependencies
 
-The FANUC driver must use its official `humble` branch. Its `main` branch targets Jazzy
+The FANUC driver must use its official `humble` branch. Its `main` branch targets newer ROS 2 releases
 and must not be used on Ubuntu 22.04 / Humble.
 
 ```bash
@@ -294,10 +294,61 @@ ros2 topic echo --once /right_arm/fanuc_gpio_controller/robot_status
 
 Expected: `motion_possible: true` with no alarm or E-stop state.
 
-The repository does not yet provide a physical first-motion target because a safe target
-must be chosen from the robot's actual starting joint state, payload, tooling, and clear
-workspace. Do not run `dual_crx_demo` with `execute:=true` on a physical arm. Establish
-and review a small on-site target before sending the first trajectory.
+Do not run `dual_crx_demo` with `execute:=true` on a physical arm. Use the guarded
+scripts below so the target is generated from the robot's live joint state.
+
+### First physical motion: single-joint step
+
+The repository now includes a conservative right-arm script:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/send_small_right_motion.sh \
+  --joint right_J6 \
+  --delta 0.02 \
+  --duration 3.0 \
+  --yes-i-understand
+```
+
+This command reads `/right_arm/joint_states`, checks
+`/right_arm/fanuc_gpio_controller/robot_status`, and sends a single-point
+`FollowJointTrajectory` goal to `/right_arm/joint_trajectory_controller`.
+
+### Periodic physical motion: single joint
+
+For bounded oscillation around the current joint state:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/send_periodic_right_motion.sh \
+  --joint right_J6 \
+  --amplitude 0.01 \
+  --period 5.0 \
+  --cycles 2 \
+  --samples-per-cycle 16 \
+  --yes-i-understand
+```
+
+### Periodic physical motion: multiple joints
+
+For coordinated right-arm motion with per-joint amplitudes and phase offsets:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/send_multi_joint_periodic_right_motion.sh \
+  --joint-motion-deg right_J4:10:0 \
+  --joint-motion-deg right_J5:10:90 \
+  --joint-motion-deg right_J6:10:180 \
+  --period 6.0 \
+  --cycles 2 \
+  --samples-per-cycle 16 \
+  --allow-large-amplitude \
+  --yes-i-understand
+```
+
+The multi-joint script now forces the first trajectory point to match the live joint
+state exactly before the periodic motion starts. This avoids the startup jump that
+occurred when a joint was phase-shifted away from zero at `t=0`.
 
 ## Project layout
 
@@ -315,7 +366,7 @@ dual_crx_ros2/
 
 ## Verified mock baseline
 
-Verified on ROS 2 Jazzy mock hardware on 2026-08-13:
+Verified on ROS 2 Humble mock hardware on 2026-08-25:
 
 - planning and execution passed for `left_arm`, `right_arm`, and `both_arms`
 - both namespaced trajectory controllers received the dual-arm trajectory
@@ -328,3 +379,11 @@ Known mock warnings:
   loads them correctly
 - WSL mock shutdown can require forced termination of RViz slider processes
 - the repeatable inter-arm avoidance scenario and RViz evidence are still pending
+
+## Physical progress on 2026-08-26
+
+- right-arm connection-only and motion-authority bringup passed on Ubuntu 22.04 / ROS 2 Humble
+- the first physical small-motion test succeeded with a guarded single-joint trajectory
+- periodic right-arm motion succeeded for single-joint oscillation
+- coordinated multi-joint periodic motion succeeded
+- a startup acceleration spike was observed with phase-shifted multi-joint motion, then mitigated by forcing the first trajectory point to the exact live joint state
