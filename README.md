@@ -299,20 +299,24 @@ scripts below so the target is generated from the robot's live joint state.
 
 ### First physical motion: single-joint step
 
-The repository now includes a conservative right-arm script:
+The repository now includes a conservative joint-motion script:
 
 ```bash
 cd ~/dual_crx_ros2
-./scripts/send_small_right_motion.sh \
-  --joint right_J6 \
+./scripts/send_small_joint_motion.sh \
+  --arm right \
+  --joint J6 \
   --delta 0.02 \
   --duration 3.0 \
   --yes-i-understand
 ```
 
-This command reads `/right_arm/joint_states`, checks
-`/right_arm/fanuc_gpio_controller/robot_status`, and sends a single-point
-`FollowJointTrajectory` goal to `/right_arm/joint_trajectory_controller`.
+This command reads the selected arm's `joint_states`, checks its
+`fanuc_gpio_controller/robot_status`, and sends a single-point
+`FollowJointTrajectory` goal to that arm's `joint_trajectory_controller`.
+Use `--arm left`, `--arm right`, or `--arm both` depending on the target.
+The older `send_small_right_motion.sh` entry point remains as a compatibility
+wrapper around this generic script.
 
 ### Periodic physical motion: single joint
 
@@ -320,8 +324,9 @@ For bounded oscillation around the current joint state:
 
 ```bash
 cd ~/dual_crx_ros2
-./scripts/send_periodic_right_motion.sh \
-  --joint right_J6 \
+./scripts/send_periodic_joint_motion.sh \
+  --arm right \
+  --joint J6 \
   --amplitude 0.01 \
   --period 5.0 \
   --cycles 2 \
@@ -329,16 +334,21 @@ cd ~/dual_crx_ros2
   --yes-i-understand
 ```
 
+This script also accepts `--arm left` and `--arm both`. The legacy
+`send_periodic_right_motion.sh` name is kept as a wrapper to preserve the old
+workflow.
+
 ### Periodic physical motion: multiple joints
 
-For coordinated right-arm motion with per-joint amplitudes and phase offsets:
+For coordinated motion with per-joint amplitudes and phase offsets:
 
 ```bash
 cd ~/dual_crx_ros2
-./scripts/send_multi_joint_periodic_right_motion.sh \
-  --joint-motion-deg right_J4:10:0 \
-  --joint-motion-deg right_J5:10:90 \
-  --joint-motion-deg right_J6:10:180 \
+./scripts/send_multi_joint_periodic_motion.sh \
+  --arm right \
+  --joint-motion-deg J4:10:0 \
+  --joint-motion-deg J5:10:90 \
+  --joint-motion-deg J6:10:180 \
   --period 6.0 \
   --cycles 2 \
   --samples-per-cycle 16 \
@@ -349,6 +359,8 @@ cd ~/dual_crx_ros2
 The multi-joint script now forces the first trajectory point to match the live joint
 state exactly before the periodic motion starts. This avoids the startup jump that
 occurred when a joint was phase-shifted away from zero at `t=0`.
+It accepts `--arm left`, `--arm right`, and `--arm both`; the older
+`send_multi_joint_periodic_right_motion.sh` wrapper forwards to it.
 
 ## Project layout
 
