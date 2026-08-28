@@ -25,17 +25,17 @@
     <joint name="left_J2" value="0.0"/>
     <joint name="left_J3" value="0.0"/>
     <joint name="left_J4" value="0.0"/>
-    <joint name="left_J5" value="-1.5708"/>
+    <joint name="left_J5" value="-1.5707963267948966"/>
     <joint name="left_J6" value="0.0"/>
   </group_state>
 
   <group_state name="home" group="right_arm">
-    <joint name="right_J1" value="3.141592653589793"/>
+    <joint name="right_J1" value="-1.5707963267948966"/>
     <joint name="right_J2" value="0.0"/>
-    <joint name="right_J3" value="0.0"/>
+    <joint name="right_J3" value="3.141592653589793"/>
     <joint name="right_J4" value="0.0"/>
-    <joint name="right_J5" value="-1.5708"/>
-    <joint name="right_J6" value="3.141592653589793"/>
+    <joint name="right_J5" value="1.5707963267948966"/>
+    <joint name="right_J6" value="0.0"/>
   </group_state>
 
   <group_state name="home" group="both_arms">
@@ -43,14 +43,14 @@
     <joint name="left_J2" value="0.0"/>
     <joint name="left_J3" value="0.0"/>
     <joint name="left_J4" value="0.0"/>
-    <joint name="left_J5" value="-1.5708"/>
+    <joint name="left_J5" value="-1.5707963267948966"/>
     <joint name="left_J6" value="0.0"/>
-    <joint name="right_J1" value="3.141592653589793"/>
+    <joint name="right_J1" value="-1.5707963267948966"/>
     <joint name="right_J2" value="0.0"/>
-    <joint name="right_J3" value="0.0"/>
+    <joint name="right_J3" value="3.141592653589793"/>
     <joint name="right_J4" value="0.0"/>
-    <joint name="right_J5" value="-1.5708"/>
-    <joint name="right_J6" value="3.141592653589793"/>
+    <joint name="right_J5" value="1.5707963267948966"/>
+    <joint name="right_J6" value="0.0"/>
   </group_state>
 
   <end_effector name="left_tool0" parent_link="left_flange" group="left_arm"/>

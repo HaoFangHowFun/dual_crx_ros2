@@ -77,6 +77,9 @@
       <state_interface name="collaborative_speed_scaling">
         <param name="initial_value">1.0</param>
       </state_interface>
+      <state_interface name="motion_possible">
+        <param name="initial_value">1.0</param>
+      </state_interface>
     </gpio>
   </ros2_control>
 </robot>
