@@ -1,0 +1,12 @@
+uint8 LEFT=1
+uint8 RIGHT=2
+uint8 BOTH=3
+string client_id
+string source_type
+uint8 arm_scope
+string requested_mode
+float64 lease_duration
+---
+bool accepted
+string reason
+builtin_interfaces/Time expires_at

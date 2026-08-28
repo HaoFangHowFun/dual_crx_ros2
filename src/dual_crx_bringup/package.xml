@@ -11,6 +11,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>dual_crx_description</exec_depend>
+  <exec_depend>dual_crx_control</exec_depend>
   <exec_depend>dual_crx_moveit_config</exec_depend>
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>fanuc_crx_description</exec_depend>
@@ -23,6 +24,7 @@
   <exec_depend>slider_publisher</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>moveit_ros_move_group</exec_depend>
+  <exec_depend>moveit_servo</exec_depend>
   <exec_depend>moveit_ros_visualization</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>

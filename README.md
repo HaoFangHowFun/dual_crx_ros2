@@ -5,6 +5,98 @@ Two FANUC CRX-5iA robots in one ROS 2 / MoveIt environment.
 - Mock development: Ubuntu 22.04 / ROS 2 Humble
 - Physical deployment: Ubuntu 22.04 / ROS 2 Humble
 - Physical-host details: [`docs/physical_bringup_ubuntu22.md`](docs/physical_bringup_ubuntu22.md)
+- Unified API/GUI Phase 1: [`docs/control_gui_phase1.md`](docs/control_gui_phase1.md)
+
+## Unified control API and GUI
+
+The project-owned control server is the only supported command gateway. It enforces
+complete/fresh dual-arm state, leases, validation, mock/physical mode, planning,
+execution, cancellation, and stop semantics. The standalone PyQt5 GUI is a client and
+contains no direct trajectory-controller command path.
+
+The GUI also includes Phase 2 single-arm Cartesian TCP pose Validate/Plan/Execute and
+press-and-hold MoveIt Servo jog for `X/Y/Z/Rx/Ry/Rz`. Both paths remain behind the same
+gateway lease, deadman, validation, Stop and physical read-only enforcement.
+
+Run the automated mock acceptance workflow:
+
+```bash
+./scripts/test_control_gui_phase1_mock.sh
+```
+
+### Interactive GUI quickstart (mock only)
+
+Build once after pulling or changing the source:
+
+```bash
+cd /home/howard/dual_crx_ros2
+./scripts/build.sh
+```
+
+Open two WSL terminals. In terminal 1, start both mock arms, MoveIt, the unified control
+server, MoveIt Servo, and RViz:
+
+```bash
+cd /home/howard/dual_crx_ros2
+./scripts/launch_mock.sh
+```
+
+Wait for both trajectory controllers to become active. In terminal 2, start the GUI:
+
+```bash
+cd /home/howard/dual_crx_ros2
+source scripts/codex_env.sh
+ros2 run dual_crx_gui dual_crx_gui
+```
+
+The status area should show `Mode: mock`, `Control state: READY`, both controllers as
+`active`, and `Freshness: fresh/complete`. Do not command motion while the state is
+offline, stale, read-only, faulted, or owned by another client.
+
+#### Joint jog
+
+1. Open the **Jog** tab and select `left` or `right`.
+2. Start with `1 deg/s`.
+3. Press and hold a `J1..J6` `+` or `-` button. Motion continues only while held.
+4. Release the button and verify motion stops. Focus loss, lease timeout, window close,
+   and the red **STOP** button also stop the jog.
+
+#### Joint-position planning
+
+1. Open **Joint position** and select `left_arm`, `right_arm`, or `both_arms`.
+2. Click **Copy current** to begin from the live state. GUI values are degrees; the ROS
+   API uses radians.
+3. Click **Validate**, then **Plan**. Editing a field never executes motion.
+4. After `plan ready`, click **Execute**. Use **Cancel** or the red **STOP** when needed.
+
+#### Cartesian pose planning
+
+1. Open **Cartesian pose** and select the left or right arm.
+2. Click **Copy current TCP**. Position fields are metres; orientation is a normalized
+   quaternion (`qx`, `qy`, `qz`, `qw`) in the `world` frame.
+3. Click **Validate**, **Plan**, and then **Execute** as separate operations.
+4. Begin with the copied current pose before trying a small offset. MoveIt performs IK,
+   joint-limit, and collision-aware planning before execution is available.
+
+#### MoveIt Servo Cartesian jog
+
+The bottom of **Cartesian pose** provides press-and-hold world-frame controls:
+
+- `X/Y/Z +/-` translate the selected TCP.
+- `Rx/Ry/Rz +/-` rotate the selected TCP.
+- Start with `2 mm/s` linear and `1 deg/s` angular speed.
+- Release stops the command stream. The gateway and Servo command timeouts provide
+  additional deadman behavior.
+
+GUI speed choices are bounded to 2–20 mm/s and 1–10 deg/s. The gateway independently
+enforces maximums of 0.03 m/s and 0.2 rad/s, validates ownership, timestamp, TF, and
+arm/TCP pairing, and remains read-only in physical mode. MoveIt Servo also applies
+joint-limit, singularity, and collision handling.
+
+The red **STOP** is a software stop/cancel path. It is not a FANUC E-stop and does not
+replace DCS or controller safety. Close the GUI, then press `Ctrl+C` in terminal 1 when
+testing is complete. Do not use `launch_real.sh` or any `send_*motion.sh` command for
+this mock GUI procedure.
 
 ## Important: mock and physical commands are different
 

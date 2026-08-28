@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+# This file is intended to be sourced by an interactive shell. Do not enable
+# errexit/nounset/pipefail here: shell options leak back to the caller and generated
+# colcon setup files are not nounset-safe (for example, COLCON_TRACE may be unset).
 
 _source_if_exists() {
   local path="$1"

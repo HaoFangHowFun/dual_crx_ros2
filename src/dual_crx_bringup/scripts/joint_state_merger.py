@@ -13,6 +13,7 @@ class JointStateMerger(Node):
         self.declare_parameter("right_topic", "/right_arm/joint_states")
         self.declare_parameter("output_topic", "/joint_states")
         self.declare_parameter("publish_period", 0.05)
+        self.declare_parameter("state_timeout", 0.5)
 
         self._joint_states = {}
 
@@ -22,6 +23,7 @@ class JointStateMerger(Node):
         publish_period = (
             self.get_parameter("publish_period").get_parameter_value().double_value
         )
+        self._state_timeout = self.get_parameter("state_timeout").value
 
         self.create_subscription(JointState, left_topic, self._left_callback, 10)
         self.create_subscription(JointState, right_topic, self._right_callback, 10)
@@ -35,13 +37,20 @@ class JointStateMerger(Node):
         self._joint_states["right"] = msg
 
     def _publish_merged_joint_states(self) -> None:
+        # Never expose a partial dual-arm state during startup. Consumers which need
+        # per-arm age still subscribe to the original namespaced topics.
+        if set(self._joint_states) != {"left", "right"}:
+            return
+        now = self.get_clock().now()
+        for joint_state in self._joint_states.values():
+            stamp = rclpy.time.Time.from_msg(joint_state.header.stamp)
+            if stamp.nanoseconds and (now - stamp).nanoseconds / 1e9 > self._state_timeout:
+                return
         merged = JointState()
-        merged.header.stamp = self.get_clock().now().to_msg()
+        merged.header.stamp = now.to_msg()
 
         for key in ("left", "right"):
             joint_state = self._joint_states.get(key)
-            if joint_state is None:
-                continue
             merged.name.extend(joint_state.name)
             merged.position.extend(joint_state.position)
             merged.velocity.extend(joint_state.velocity)
