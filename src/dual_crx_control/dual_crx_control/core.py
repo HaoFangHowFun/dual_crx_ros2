@@ -28,9 +28,11 @@ class Lease:
 class ControlCore:
     """Deterministic state/ownership validation used by ROS and unit tests."""
 
-    def __init__(self, *, physical=False, state_timeout=0.5, max_jog_velocity=0.2,
-                 min_lease=0.1, max_lease=5.0):
+    def __init__(self, *, physical=False, allow_physical_control=False,
+                 state_timeout=0.5, max_jog_velocity=0.2, min_lease=0.1,
+                 max_lease=5.0):
         self.physical = physical
+        self.allow_physical_control = allow_physical_control
         self.state_timeout = state_timeout
         self.max_jog_velocity = max_jog_velocity
         self.min_lease = min_lease
@@ -39,8 +41,12 @@ class ControlCore:
         self.leases: Dict[int, Lease] = {}
         self.controllers = {LEFT: False, RIGHT: False}
         self.active_scope: Optional[int] = None
-        self.control_state = READ_ONLY if physical else OFFLINE
-        self.reason = "physical mode is read-only" if physical else "waiting for complete state"
+        self.control_state = READ_ONLY if self._is_read_only() else OFFLINE
+        self.reason = ("physical mode is read-only" if self._is_read_only()
+                       else "waiting for complete state")
+
+    def _is_read_only(self) -> bool:
+        return self.physical and not self.allow_physical_control
 
     @staticmethod
     def arms(scope: int) -> Tuple[int, ...]:
@@ -86,7 +92,7 @@ class ControlCore:
             self.active_scope = None
             self.reason = "lease heartbeat timed out; motion stopped"
         ready, reason = self.readiness(now)
-        if self.physical:
+        if self._is_read_only():
             self.control_state = READ_ONLY
             self.reason = "physical mode is read-only"
         elif not ready:
@@ -103,7 +109,7 @@ class ControlCore:
         arms = self.arms(scope)
         if not client_id.strip() or not arms:
             return False, "client_id and valid arm scope are required", 0.0
-        if self.physical:
+        if self._is_read_only():
             return False, "physical mode is read-only", 0.0
         ready, reason = self.readiness(now)
         if not ready:
@@ -141,7 +147,7 @@ class ControlCore:
 
     def require_owner(self, client_id: str, scope: int, now: float) -> Tuple[bool, str]:
         self.refresh(now)
-        if self.physical:
+        if self._is_read_only():
             return False, "physical mode is read-only"
         arms = self.arms(scope)
         if not arms or any(a not in self.leases or self.leases[a].client_id != client_id for a in arms):

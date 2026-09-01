@@ -3,6 +3,8 @@ import os
 import sys
 import uuid
 
+from fanuc_msgs.msg import RobotStatus
+from fanuc_msgs.srv import SwitchControlState
 from PyQt5 import QtCore, QtWidgets
 import rclpy
 from control_msgs.msg import JointJog
@@ -20,6 +22,7 @@ LEFT, RIGHT, BOTH = 1, 2, 3
 
 class RosApi(QtCore.QObject):
     state_received = QtCore.pyqtSignal(object)
+    robot_status_received = QtCore.pyqtSignal(int, object)
     result_received = QtCore.pyqtSignal(str)
 
     def __init__(self, client_id):
@@ -27,11 +30,18 @@ class RosApi(QtCore.QObject):
         self.client_id = client_id
         self.node = Node("dual_crx_gui_client")
         self.state = None
-        self.scope = LEFT
+        self.robot_status = {}
+        self.scope = None
         self.plan_id = ""
         self.cartesian_plan_id = ""
         self.goal_handle = None
         self.node.create_subscription(SystemState, "/dual_crx/state", self._state, 10)
+        self.node.create_subscription(
+            RobotStatus, "/left_arm/fanuc_gpio_controller/robot_status",
+            lambda msg: self._robot_status(LEFT, msg), 10)
+        self.node.create_subscription(
+            RobotStatus, "/right_arm/fanuc_gpio_controller/robot_status",
+            lambda msg: self._robot_status(RIGHT, msg), 10)
         self.acquire_client = self.node.create_client(AcquireControl, "/dual_crx/acquire_control")
         self.release_client = self.node.create_client(ReleaseControl, "/dual_crx/release_control")
         self.heartbeat_client = self.node.create_client(Heartbeat, "/dual_crx/heartbeat")
@@ -41,6 +51,12 @@ class RosApi(QtCore.QObject):
         self.stop_client = self.node.create_client(SoftwareStop, "/dual_crx/stop")
         self.position_client = ActionClient(self.node, JointPosition, "/dual_crx/joint_position")
         self.cartesian_client = ActionClient(self.node, CartesianPose, "/dual_crx/cartesian_pose")
+        self.motion_clients = {
+            LEFT: self.node.create_client(
+                SwitchControlState, "/left_arm/fanuc_gpio_controller/switch_control_state"),
+            RIGHT: self.node.create_client(
+                SwitchControlState, "/right_arm/fanuc_gpio_controller/switch_control_state"),
+        }
 
     def spin_once(self):
         rclpy.spin_once(self.node, timeout_sec=0.0)
@@ -49,11 +65,28 @@ class RosApi(QtCore.QObject):
         self.state = msg
         self.state_received.emit(msg)
 
+    def _robot_status(self, arm, msg):
+        self.robot_status[arm] = msg
+        self.robot_status_received.emit(arm, msg)
+
     def acquire(self, scope):
-        self.scope = scope
         req = AcquireControl.Request(client_id=self.client_id, source_type="GUI",
                                      arm_scope=scope, requested_mode="JOINT", lease_duration=1.0)
-        self.acquire_client.call_async(req)
+        future = self.acquire_client.call_async(req)
+        future.add_done_callback(lambda f, scope=scope: self._acquire_result(f, scope))
+
+    def _acquire_result(self, future, scope):
+        try:
+            response = future.result()
+        except Exception:
+            self.scope = None
+            self.result_received.emit("acquire failed")
+            return
+        if response.accepted:
+            self.scope = scope
+        else:
+            self.scope = None
+            self.result_received.emit(response.reason or "acquire rejected")
 
     def heartbeat(self):
         if self.scope:
@@ -64,6 +97,34 @@ class RosApi(QtCore.QObject):
         if self.scope:
             self.release_client.call_async(ReleaseControl.Request(
                 client_id=self.client_id, arm_scope=self.scope))
+            self.scope = None
+
+    def switch_motion(self, arm, enable):
+        client = self.motion_clients[arm]
+        if not client.service_is_ready():
+            self.result_received.emit(
+                f"{'left' if arm == LEFT else 'right'} motion service unavailable")
+            return
+        req = SwitchControlState.Request()
+        req.status = (SwitchControlState.Request.START
+                      if enable else SwitchControlState.Request.STOP)
+        future = client.call_async(req)
+        future.add_done_callback(
+            lambda f, arm=arm, enable=enable: self._switch_motion_result(f, arm, enable))
+
+    def _switch_motion_result(self, future, arm, enable):
+        arm_name = "left" if arm == LEFT else "right"
+        try:
+            response = future.result()
+        except Exception as exc:
+            self.result_received.emit(f"{arm_name} motion switch failed: {exc}")
+            return
+        if response.result == 0:
+            self.result_received.emit(
+                f"{arm_name} motion {'enabled' if enable else 'disabled'}")
+        else:
+            self.result_received.emit(
+                f"{arm_name} motion {'enable' if enable else 'disable'} rejected ({response.result})")
 
     def jog(self, scope, joint, velocity):
         command = JointJog()
@@ -164,6 +225,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stop_button.setStyleSheet("font-size: 22px; font-weight: bold; color: white; background: #b00020")
         self.stop_button.clicked.connect(lambda: self.api.stop())
         layout.addWidget(self.stop_button)
+        self.motion_box = QtWidgets.QGroupBox("Physical motion control")
+        motion_layout = QtWidgets.QGridLayout(self.motion_box)
+        self.motion_labels = {}
+        for row, (arm, title) in enumerate(((LEFT, "Left"), (RIGHT, "Right"))):
+            motion_layout.addWidget(QtWidgets.QLabel(title), row, 0)
+            label = QtWidgets.QLabel("status unavailable")
+            self.motion_labels[arm] = label
+            motion_layout.addWidget(label, row, 1)
+            enable_button = QtWidgets.QPushButton("Enable Motion")
+            enable_button.clicked.connect(lambda _=False, arm=arm: self.api.switch_motion(arm, True))
+            motion_layout.addWidget(enable_button, row, 2)
+            disable_button = QtWidgets.QPushButton("Disable Motion")
+            disable_button.clicked.connect(lambda _=False, arm=arm: self.api.switch_motion(arm, False))
+            motion_layout.addWidget(disable_button, row, 3)
+        self.motion_box.setVisible(False)
+        layout.addWidget(self.motion_box)
 
         arms = QtWidgets.QHBoxLayout()
         self.joint_labels = {LEFT: [], RIGHT: []}
@@ -187,6 +264,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tabs.addTab(self._cartesian_panel(), "Cartesian pose")
         layout.addWidget(tabs)
         self.api.state_received.connect(self.update_state)
+        self.api.robot_status_received.connect(self.update_robot_status)
         self.api.result_received.connect(self.command_result.setText)
 
     def _jog_panel(self):
@@ -409,11 +487,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.labels["Freshness"].setText("fresh/complete" if msg.fresh and msg.complete else "NOT READY")
         self.labels["Active command"].setText(msg.active_command or "—")
         self.labels["Reason"].setText(msg.reason)
+        self.motion_box.setVisible(msg.operating_mode == "physical")
         for arm, state in ((LEFT, msg.left_joints), (RIGHT, msg.right_joints)):
             for pair, pos, vel in zip(self.joint_labels[arm], state.position, state.velocity):
                 pair[0].setText(f"{math.degrees(pos):.3f}"); pair[1].setText(f"{math.degrees(vel):.3f}")
-        writable = msg.operating_mode == "mock" and msg.control_state not in (SystemState.READ_ONLY, SystemState.ESTOP)
+        writable = msg.control_state not in (SystemState.READ_ONLY, SystemState.ESTOP)
         for widget in self.command_widgets: widget.setEnabled(writable)
+
+    @QtCore.pyqtSlot(int, object)
+    def update_robot_status(self, arm, msg):
+        parts = [
+            "motion on" if msg.motion_possible else "motion off",
+            "ok" if not msg.in_error else "error",
+            "tp off" if not msg.tp_enabled else "tp on",
+            "estop off" if not msg.e_stopped else "estop on",
+        ]
+        self.motion_labels[arm].setText(" | ".join(parts))
 
     def focusOutEvent(self, event):
         self._jog_timer.stop(); self._jog_request = None

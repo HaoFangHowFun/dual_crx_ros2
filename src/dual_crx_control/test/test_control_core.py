@@ -75,6 +75,15 @@ def test_goal_validation_and_physical_write_protection():
     assert not physical.acquire("x", "GUI", LEFT, "JOG", 1.0, 10.0)[0]
 
 
+def test_physical_control_can_be_explicitly_enabled():
+    physical = ControlCore(physical=True, allow_physical_control=True)
+    complete(physical)
+    acquired, _, _ = physical.acquire("gui", "GUI", LEFT, "JOG", 1.0, 10.0)
+    assert acquired
+    assert physical.control_state == READY
+    assert physical.validate_jog("gui", LEFT, ["left_J1"], [0.1], 10.0, 10.0)[0]
+
+
 def test_cartesian_pose_validation():
     core = ControlCore(); complete(core)
     core.acquire("gui", "GUI", LEFT, "CARTESIAN", 1.0, 10.0)

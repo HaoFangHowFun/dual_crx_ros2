@@ -169,6 +169,7 @@ def launch_setup(context, *args, **kwargs):
     use_mock = LaunchConfiguration("use_mock")
     launch_rviz = LaunchConfiguration("launch_rviz")
     launch_control_server = LaunchConfiguration("launch_control_server")
+    allow_physical_control = LaunchConfiguration("allow_physical_control")
     launch_servo = LaunchConfiguration("launch_servo")
     left_robot_ip = LaunchConfiguration("left_robot_ip")
     right_robot_ip = LaunchConfiguration("right_robot_ip")
@@ -324,26 +325,25 @@ def launch_setup(context, *args, **kwargs):
         .to_moveit_configs()
     )
 
-    if use_mock.perform(context) == "true":
-        for arm in ("left", "right"):
-            servo_path = os.path.join(
-                get_package_share_directory("dual_crx_bringup"),
-                "config",
-                f"{arm}_servo.yaml",
+    for arm in ("left", "right"):
+        servo_path = os.path.join(
+            get_package_share_directory("dual_crx_bringup"),
+            "config",
+            f"{arm}_servo.yaml",
+        )
+        with open(servo_path, "r", encoding="utf-8") as handle:
+            servo_parameters = yaml.safe_load(handle)
+        launch_items.append(
+            Node(
+                package="moveit_servo",
+                executable="servo_node",
+                namespace=f"{arm}_servo",
+                name="servo_node",
+                output="log",
+                condition=IfCondition(launch_servo),
+                parameters=[{"moveit_servo": servo_parameters}, moveit_config.to_dict()],
             )
-            with open(servo_path, "r", encoding="utf-8") as handle:
-                servo_parameters = yaml.safe_load(handle)
-            launch_items.append(
-                Node(
-                    package="moveit_servo",
-                    executable="servo_node",
-                    namespace=f"{arm}_servo",
-                    name="servo_node",
-                    output="log",
-                    condition=IfCondition(launch_servo),
-                    parameters=[{"moveit_servo": servo_parameters}, moveit_config.to_dict()],
-                )
-            )
+        )
 
     launch_items.append(
         Node(
@@ -363,7 +363,10 @@ def launch_setup(context, *args, **kwargs):
             name="dual_crx_control_server",
             output="both",
             condition=IfCondition(launch_control_server),
-            parameters=[{"operating_mode": "mock" if use_mock.perform(context) == "true" else "physical"}],
+            parameters=[{
+                "operating_mode": "mock" if use_mock.perform(context) == "true" else "physical",
+                "allow_physical_control": allow_physical_control,
+            }],
         )
     )
 
@@ -408,6 +411,11 @@ def generate_launch_description():
             DeclareLaunchArgument("use_mock", default_value="true"),
             DeclareLaunchArgument("launch_rviz", default_value="true"),
             DeclareLaunchArgument("launch_control_server", default_value="true"),
+            DeclareLaunchArgument(
+                "allow_physical_control",
+                default_value="false",
+                description="Allow the unified control server to command physical robots.",
+            ),
             DeclareLaunchArgument("launch_servo", default_value="true"),
             DeclareLaunchArgument("left_robot_ip", default_value="192.168.2.100"),
             DeclareLaunchArgument("right_robot_ip", default_value="192.168.1.100"),

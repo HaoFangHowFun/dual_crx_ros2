@@ -14,8 +14,10 @@ class Signal(QtCore.QObject):
 class FakeApi:
     def __init__(self):
         self._state_signal = Signal()
+        self._robot_status_signal = Signal()
         self._result_signal = Signal()
         self.state_received = self._state_signal.emitted
+        self.robot_status_received = self._robot_status_signal.emitted
         self.result_received = self._result_signal.emitted
         self.calls = []
         self.state = None
@@ -28,11 +30,12 @@ class FakeApi:
     def cartesian_pose(self, *args, **kwargs): self.calls.append(("cartesian", args, kwargs))
     def cancel(self): self.calls.append(("cancel",))
     def stop(self, reason="GUI stop"): self.calls.append(("stop", reason))
+    def switch_motion(self, arm, enable): self.calls.append(("switch_motion", arm, enable))
     def release(self): self.calls.append(("release",))
     def close(self): self.calls.append(("close",))
 
 
-def test_headless_state_copy_jog_and_physical_disable():
+def test_headless_state_copy_jog_and_physical_state_gates_widgets():
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     api = FakeApi(); window = MainWindow(api); window.show(); app.processEvents()
     msg = SystemState(operating_mode="mock", control_state=SystemState.READY,
@@ -59,4 +62,7 @@ def test_headless_state_copy_jog_and_physical_disable():
     msg.operating_mode = "physical"; msg.control_state = SystemState.READ_ONLY
     window.update_state(msg)
     assert not window.targets[0][1].isEnabled()
+    msg.control_state = SystemState.READY
+    window.update_state(msg)
+    assert window.targets[0][1].isEnabled()
     window.deleteLater(); app.processEvents()

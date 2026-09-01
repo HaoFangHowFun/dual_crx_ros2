@@ -15,7 +15,9 @@ contains no direct trajectory-controller command path.
 
 The GUI also includes Phase 2 single-arm Cartesian TCP pose Validate/Plan/Execute and
 press-and-hold MoveIt Servo jog for `X/Y/Z/Rx/Ry/Rz`. Both paths remain behind the same
-gateway lease, deadman, validation, Stop and physical read-only enforcement.
+gateway lease, deadman, validation, Stop and physical safety checks. On physical robots,
+start the GUI stack in connection-only mode first, confirm fresh state, then enable
+motion per arm from the GUI before sending commands.
 
 Run the automated mock acceptance workflow:
 
@@ -89,13 +91,53 @@ The bottom of **Cartesian pose** provides press-and-hold world-frame controls:
 
 GUI speed choices are bounded to 2–20 mm/s and 1–10 deg/s. The gateway independently
 enforces maximums of 0.03 m/s and 0.2 rad/s, validates ownership, timestamp, TF, and
-arm/TCP pairing, and remains read-only in physical mode. MoveIt Servo also applies
-joint-limit, singularity, and collision handling.
+arm/TCP pairing. MoveIt Servo also applies joint-limit, singularity, and collision
+handling.
 
 The red **STOP** is a software stop/cancel path. It is not a FANUC E-stop and does not
 replace DCS or controller safety. Close the GUI, then press `Ctrl+C` in terminal 1 when
 testing is complete. Do not use `launch_real.sh` or any `send_*motion.sh` command for
 this mock GUI procedure.
+
+### Interactive GUI quickstart (physical robots)
+
+Build once after pulling or changing the source:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/build.sh
+```
+
+Start the physical GUI stack in connection-only mode. This brings up both physical arms,
+MoveIt, MoveIt Servo, and the unified control server without requesting motion authority:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/launch_real_gui.sh
+```
+
+Open a second terminal for the GUI:
+
+```bash
+cd ~/dual_crx_ros2
+source scripts/codex_env.sh
+ros2 run dual_crx_gui dual_crx_gui
+```
+
+Wait for `Mode: physical`, `Freshness: fresh/complete`, and both controllers to show
+`active`. The GUI includes a **Physical motion control** section with independent left
+and right arm state plus **Enable Motion** / **Disable Motion** buttons.
+
+Recommended physical GUI workflow:
+
+1. Start in connection-only mode and wait for both arms to become fresh.
+2. Use **Enable Motion** on only one arm first.
+3. Confirm that arm reports `motion on`, `ok`, `tp off`, and `estop off`.
+4. Begin with joint jog or a very small planned move on the enabled arm only.
+5. Use **Disable Motion** after the test, then close the GUI and stop the launch.
+
+Do not request simultaneous dual-arm motion until both single-arm GUI motion tests pass
+and the physical base transforms in `robot_placement.yaml` are measured and updated.
 
 ## Important: mock and physical commands are different
 
@@ -106,6 +148,8 @@ this mock GUI procedure.
 | Execute a trajectory in mock | `dual_crx_demo ... execute:=true` | No |
 | Check a physical connection | `launch_real.sh --arm ...` | No; defaults to `motion_control=0` |
 | Request physical motion authority | add `--enable-motion --yes-i-understand` | Authority only; the launch itself sends no target |
+| Start the physical GUI stack | `./scripts/launch_real_gui.sh` | No; GUI starts connection-only |
+| Enable motion from the physical GUI | Use the per-arm `Enable Motion` button | Yes; only for the selected arm |
 
 Never use the fixed mock demo target as the first physical-robot motion. The values in
 `dual_crx_demo` and `robot_placement.yaml` have only been validated in mock hardware.
@@ -388,6 +432,29 @@ Expected: `motion_possible: true` with no alarm or E-stop state.
 
 Do not run `dual_crx_demo` with `execute:=true` on a physical arm. Use the guarded
 scripts below so the target is generated from the robot's live joint state.
+
+### GUI-first physical motion workflow
+
+If you want to use the PyQt GUI on physical robots, do not request motion authority in
+the launch itself. Start the GUI stack in connection-only mode:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/launch_real_gui.sh
+```
+
+Then start the GUI in a second terminal:
+
+```bash
+cd ~/dual_crx_ros2
+source scripts/codex_env.sh
+ros2 run dual_crx_gui dual_crx_gui
+```
+
+Wait for the GUI status area to show `Mode: physical` and `Freshness: fresh/complete`.
+Use the GUI's per-arm **Enable Motion** button only after the live state is clear.
+This staged flow avoids the slow or failed bringup that can happen when both physical
+arms request motion authority during startup.
 
 ### First physical motion: single-joint step
 

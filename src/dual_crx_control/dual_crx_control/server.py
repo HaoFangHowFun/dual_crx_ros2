@@ -35,13 +35,17 @@ class ControlServer(Node):
     def __init__(self):
         super().__init__("dual_crx_control_server")
         self.declare_parameter("operating_mode", "mock")
+        self.declare_parameter("allow_physical_control", False)
         self.declare_parameter("state_timeout", 0.5)
         self.declare_parameter("max_jog_velocity", 0.2)
         self.declare_parameter("jog_step_duration", 0.15)
         self.declare_parameter("publish_period", 0.1)
         mode = self.get_parameter("operating_mode").value
+        allow_physical_control = bool(
+            self.get_parameter("allow_physical_control").value)
         self._core = ControlCore(
             physical=mode != "mock",
+            allow_physical_control=allow_physical_control,
             state_timeout=float(self.get_parameter("state_timeout").value),
             max_jog_velocity=float(self.get_parameter("max_jog_velocity").value),
         )
@@ -320,14 +324,14 @@ class ControlServer(Node):
     def _stop(self, req, res):
         self._core.control_state = STOPPING
         self._cancel_motion()
-        self._core.control_state = READY if not self._core.physical else self._core.control_state
+        self._core.control_state = READY if not self._core._is_read_only() else self._core.control_state
         self._core.reason = f"software stop: {req.reason or 'requested'}"
         res.stopped = True
         res.detail = self._core.reason
         return res
 
     def _position_goal(self, goal):
-        if self._core.physical:
+        if self._core._is_read_only():
             return GoalResponse.REJECT
         return GoalResponse.ACCEPT
 
@@ -336,7 +340,7 @@ class ControlServer(Node):
         return CancelResponse.ACCEPT
 
     def _cartesian_goal(self, goal):
-        if self._core.physical:
+        if self._core._is_read_only():
             return GoalResponse.REJECT
         return GoalResponse.ACCEPT
 

@@ -27,29 +27,29 @@ std::map<std::string, double> demo_target(const std::string & group)
 
   if (group == "right_arm") {
     return {
-      {"right_J1", kPi - 0.35},
-      {"right_J2", 0.0},
-      {"right_J3", 0.0},
+      {"right_J1", -1.25},
+      {"right_J2", 0.10},
+      {"right_J3", 2.95},
       {"right_J4", 0.0},
-      {"right_J5", -0.35},
-      {"right_J6", kPi},
+      {"right_J5", 1.35},
+      {"right_J6", 0.10},
     };
   }
 
   if (group == "both_arms") {
     return {
-      {"left_J1", 0.55},
-      {"left_J2", 0.15},
+      {"left_J1", 0.30},
+      {"left_J2", 0.10},
       {"left_J3", 0.0},
       {"left_J4", 0.0},
-      {"left_J5", -0.60},
+      {"left_J5", -1.35},
       {"left_J6", 0.0},
-      {"right_J1", kPi - 0.55},
-      {"right_J2", 0.15},
-      {"right_J3", 0.0},
+      {"right_J1", -1.30},
+      {"right_J2", 0.10},
+      {"right_J3", 3.00},
       {"right_J4", 0.0},
-      {"right_J5", -0.60},
-      {"right_J6", kPi},
+      {"right_J5", 1.35},
+      {"right_J6", 0.10},
     };
   }
 
