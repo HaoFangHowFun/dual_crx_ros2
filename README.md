@@ -2,9 +2,8 @@
 
 Two FANUC CRX-5iA robots in one ROS 2 / MoveIt environment.
 
-- Mock development: Ubuntu 22.04 / ROS 2 Humble
-- Physical deployment: Ubuntu 22.04 / ROS 2 Humble
-- Physical-host details: [`docs/physical_bringup_ubuntu22.md`](docs/physical_bringup_ubuntu22.md)
+- Laptop (WSL 2 mock development): Ubuntu 24.04 / ROS 2 Jazzy
+- Physical PC (native deployment): Ubuntu 24.04 / ROS 2 Jazzy
 - Unified API/GUI Phase 1: [`docs/control_gui_phase1.md`](docs/control_gui_phase1.md)
 
 ## Unified control API and GUI
@@ -132,22 +131,23 @@ cd ~/dual_crx_ros2
 Because the repository is private, HTTPS will require a GitHub username and personal
 access token. A `.tar.gz` bundle is only an offline backup.
 
-## 2. Install Ubuntu 22.04 / ROS 2 Humble environment
+## 2. Install Ubuntu 24.04 / ROS 2 Jazzy environment
 
-The physical PC should run native Ubuntu 22.04. First install ROS 2 Humble Desktop using
+The physical PC should run native Ubuntu 24.04, and the laptop's WSL 2 distribution
+should also be Ubuntu 24.04. Install ROS 2 Jazzy Desktop using
 the official Ubuntu deb-package instructions:
 
-- <https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html>
+- <https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html>
 
 Then install the project tools and ROS dependencies:
 
 ```bash
 sudo apt update
 sudo apt install -y \
-  ros-humble-desktop \
-  ros-humble-moveit \
-  ros-humble-ros2-control \
-  ros-humble-ros2-controllers \
+  ros-jazzy-desktop \
+  ros-jazzy-moveit \
+  ros-jazzy-ros2-control \
+  ros-jazzy-ros2-controllers \
   python3-colcon-common-extensions \
   python3-rosdep \
   python3-vcstool \
@@ -165,19 +165,19 @@ sudo rosdep init
 rosdep update
 ```
 
-## 3. Download and build the official FANUC Humble dependencies
+## 3. Download and build the official FANUC Jazzy dependencies
 
-The FANUC driver must use its official `humble` branch. Its `main` branch targets newer ROS 2 releases
-and must not be used on Ubuntu 22.04 / Humble.
+On Ubuntu 24.04 / ROS 2 Jazzy, use the FANUC repositories' `main` branches recorded in
+this project's `.repos` file.
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 mkdir -p ~/ws_fanuc/src
-vcs import ~/ws_fanuc/src < ~/dual_crx_ros2/fanuc_humble.repos
+vcs import ~/ws_fanuc/src < ~/dual_crx_ros2/.repos
 git -C ~/ws_fanuc/src/fanuc_driver submodule update --init --recursive
 
 cd ~/ws_fanuc
-rosdep install --ignore-src --from-paths src -y --rosdistro humble
+rosdep install --ignore-src --from-paths src -y --rosdistro jazzy
 colcon build --symlink-install \
   --cmake-args -DBUILD_TESTING=1 -DBUILD_EXAMPLES=1
 ```
@@ -185,7 +185,7 @@ colcon build --symlink-install \
 Build this project overlay:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 source ~/ws_fanuc/install/setup.bash
 cd ~/dual_crx_ros2
 colcon build --symlink-install
@@ -203,7 +203,7 @@ ros2 pkg prefix dual_crx_bringup
 
 Expected results:
 
-- `ROS_DISTRO=humble`
+- `ROS_DISTRO=jazzy`
 - `ros2` and `colcon` are found
 - `AMENT_PREFIX_PATH` contains `ws_fanuc/install` and `dual_crx_ros2/install`
 - both package-prefix commands return paths without errors
@@ -460,7 +460,7 @@ It accepts `--arm left`, `--arm right`, and `--arm both`; the older
 dual_crx_ros2/
 ├── docs/
 ├── scripts/
-├── fanuc_humble.repos
+├── .repos
 └── src/
     ├── dual_crx_bringup/
     ├── dual_crx_control/
@@ -470,7 +470,7 @@ dual_crx_ros2/
 
 ## Verified mock baseline
 
-Verified on ROS 2 Humble mock hardware on 2026-08-25:
+Verified on Ubuntu 24.04 / ROS 2 Jazzy mock hardware on 2026-08-25:
 
 - planning and execution passed for `left_arm`, `right_arm`, and `both_arms`
 - both namespaced trajectory controllers received the dual-arm trajectory
@@ -486,7 +486,7 @@ Known mock warnings:
 
 ## Physical progress on 2026-08-26
 
-- right-arm connection-only and motion-authority bringup passed on Ubuntu 22.04 / ROS 2 Humble
+- right-arm connection-only and motion-authority bringup passed
 - the first physical small-motion test succeeded with a guarded single-joint trajectory
 - periodic right-arm motion succeeded for single-joint oscillation
 - coordinated multi-joint periodic motion succeeded
