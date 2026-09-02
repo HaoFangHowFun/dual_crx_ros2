@@ -27,6 +27,7 @@ install(PROGRAMS
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_control_core test/test_control_core.py)
+  ament_add_pytest_test(test_workcell test/test_workcell.py)
 endif()
 
 ament_package()

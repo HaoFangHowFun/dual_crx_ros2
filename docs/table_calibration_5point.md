@@ -151,6 +151,13 @@ This creates a fresh local `robot_placement_physical.yaml`; it does not move the
 Restart the physical launch and repeat the safe TF/RViz and single-arm checks below. Do
 not reuse the profile after a robot base, table, or relevant TCP setup has moved.
 
+The unified control GUI displays the exact placement file and SHA-256 loaded by the
+running gateway. Its **5-point check** tab can plan all ten arm/point targets without
+motion, or execute a guarded left-then-right verification. The checkpoint clearance is
+limited to at least 15 mm for this coarse calibration; the requested 3 mm clearance is
+smaller than the recorded 5.22 mm worst-point error and is therefore rejected by the
+gateway. The signed EEF Z correction is applied when deriving each flange target.
+
 After activation, start connection-only and inspect TF/RViz before enabling motion:
 
 ```bash

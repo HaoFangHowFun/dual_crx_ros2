@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import sys
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
 
 from PyQt5 import QtWidgets
 import pytest

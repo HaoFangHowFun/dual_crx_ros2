@@ -1,17 +1,18 @@
 """ROS adapter for the dual CRX safety/control gateway."""
 
-import time
 import uuid
 
 import rclpy
 from action_msgs.msg import GoalStatus
 from control_msgs.action import FollowJointTrajectory
+from dual_crx_interfaces.action import CalibrationCheck
 from dual_crx_interfaces.action import JointPosition
 from dual_crx_interfaces.action import CartesianPose
 from dual_crx_interfaces.msg import SystemState
 from dual_crx_interfaces.srv import (AcquireControl, CartesianJog, Heartbeat, JointJog,
-                                     ReleaseControl, SoftwareStop)
-from geometry_msgs.msg import TwistStamped
+                                     ReleaseControl, SoftwareStop, GetWorkcellInfo)
+from fanuc_msgs.msg import RobotStatus
+from geometry_msgs.msg import Pose, TwistStamped
 from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import (Constraints, JointConstraint, MoveItErrorCodes,
                              OrientationConstraint, PlanningOptions, PositionConstraint)
@@ -29,6 +30,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 
 from .core import (BOTH, EXECUTING, FAULT, JOGGING, LEFT, PLANNING, READY,
                    RIGHT, STOPPING, ControlCore)
+from .workcell import WorkcellError, load_workcell, verification_targets
 
 
 class ControlServer(Node):
@@ -40,6 +42,7 @@ class ControlServer(Node):
         self.declare_parameter("max_jog_velocity", 0.2)
         self.declare_parameter("jog_step_duration", 0.15)
         self.declare_parameter("publish_period", 0.1)
+        self.declare_parameter("robot_placement_file", "")
         mode = self.get_parameter("operating_mode").value
         allow_physical_control = bool(
             self.get_parameter("allow_physical_control").value)
@@ -58,6 +61,29 @@ class ControlServer(Node):
         self._progress = 0.0
         self._servo_configured = {LEFT: False, RIGHT: False}
         self._servo_active = set()
+        self._robot_status = {}
+        self._placement_data = {}
+        self._workcell_info = {
+            "loaded": False,
+            "valid": False,
+            "world_frame": "world",
+            "table_frame": "table_frame",
+            "placement_file": str(self.get_parameter("robot_placement_file").value),
+            "profile_name": "",
+            "generated_at": "",
+            "source_calibration": "",
+            "sha256": "",
+            "left_eef_z_offset_m": 0.0,
+            "right_eef_z_offset_m": 0.0,
+            "reason": "placement file was not provided",
+        }
+        placement_file = str(self.get_parameter("robot_placement_file").value)
+        if placement_file:
+            try:
+                self._placement_data, self._workcell_info = load_workcell(placement_file)
+            except WorkcellError as exc:
+                self._workcell_info["reason"] = str(exc)
+                self.get_logger().error(f"workcell metadata unavailable: {exc}")
 
         self.create_subscription(JointState, "/left_arm/joint_states",
                                  lambda m: self._state_cb(LEFT, m), qos_profile_sensor_data,
@@ -65,6 +91,12 @@ class ControlServer(Node):
         self.create_subscription(JointState, "/right_arm/joint_states",
                                  lambda m: self._state_cb(RIGHT, m), qos_profile_sensor_data,
                                  callback_group=self._group)
+        self.create_subscription(
+            RobotStatus, "/left_arm/fanuc_gpio_controller/robot_status",
+            lambda m: self._robot_status_cb(LEFT, m), 10, callback_group=self._group)
+        self.create_subscription(
+            RobotStatus, "/right_arm/fanuc_gpio_controller/robot_status",
+            lambda m: self._robot_status_cb(RIGHT, m), 10, callback_group=self._group)
         self._state_pub = self.create_publisher(SystemState, "/dual_crx/state", 10)
 
         self._trajectory = {
@@ -106,6 +138,8 @@ class ControlServer(Node):
         self.create_service(JointJog, "/dual_crx/jog", self._jog, callback_group=self._group)
         self.create_service(CartesianJog, "/dual_crx/cartesian_jog", self._cartesian_jog,
                             callback_group=self._group)
+        self.create_service(GetWorkcellInfo, "/dual_crx/workcell_info", self._get_workcell_info,
+                            callback_group=self._group)
         self.create_service(SoftwareStop, "/dual_crx/stop", self._stop, callback_group=self._group)
         self._position_server = ActionServer(
             self, JointPosition, "/dual_crx/joint_position", execute_callback=self._position,
@@ -117,11 +151,20 @@ class ControlServer(Node):
             goal_callback=self._cartesian_goal,
             cancel_callback=self._cartesian_cancel,
             callback_group=self._group)
+        self._calibration_check_server = ActionServer(
+            self, CalibrationCheck, "/dual_crx/calibration_check",
+            execute_callback=self._calibration_check,
+            goal_callback=self._calibration_check_goal,
+            cancel_callback=self._calibration_check_cancel,
+            callback_group=self._group)
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self, spin_thread=False)
         self.create_timer(float(self.get_parameter("publish_period").value), self._tick,
                           callback_group=self._group)
         self.get_logger().info(f"control gateway started in {mode!r} mode")
+        self.get_logger().info(
+            "workcell placement: " + self._workcell_info.get("placement_file", "")
+        )
 
     def _now(self):
         return self.get_clock().now().nanoseconds / 1e9
@@ -134,6 +177,18 @@ class ControlServer(Node):
         ok, reason = self._core.update_state(arm, stamp, msg.name, msg.position, msg.velocity)
         if not ok:
             self._core.reason = reason
+
+    def _robot_status_cb(self, arm, msg):
+        self._robot_status[arm] = (self._now(), msg)
+
+    def _get_workcell_info(self, _req, res):
+        for field in (
+            "loaded", "valid", "world_frame", "table_frame", "placement_file",
+            "profile_name", "generated_at", "source_calibration", "sha256",
+            "left_eef_z_offset_m", "right_eef_z_offset_m", "reason",
+        ):
+            setattr(res, field, self._workcell_info[field])
+        return res
 
     @staticmethod
     def _time_msg(seconds):
@@ -347,6 +402,318 @@ class ControlServer(Node):
     def _cartesian_cancel(self, _goal):
         self._cancel_motion()
         return CancelResponse.ACCEPT
+
+    def _calibration_check_goal(self, _goal):
+        if self._core._is_read_only():
+            return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
+
+    def _calibration_check_cancel(self, _goal):
+        self._cancel_motion()
+        return CancelResponse.ACCEPT
+
+    def _physical_robot_status_ready(self):
+        if self._mode == "mock":
+            return True, "mock mode"
+        for arm, label in ((LEFT, "left"), (RIGHT, "right")):
+            item = self._robot_status.get(arm)
+            if item is None:
+                return False, f"{label} robot status unavailable"
+            received_at, status = item
+            if self._now() - received_at > 1.0:
+                return False, f"{label} robot status is stale"
+            if not status.motion_possible:
+                return False, f"{label} motion is not enabled"
+            if status.in_error:
+                return False, f"{label} robot reports an error"
+            if status.tp_enabled:
+                return False, f"{label} teach pendant is enabled"
+            if status.e_stopped:
+                return False, f"{label} robot is e-stopped"
+        return True, "both robots ready"
+
+    async def _plan_pose_trajectory(
+        self, scope, position_xyz, orientation_xyzw, velocity_scale=0.05
+    ):
+        if not self._move_group.server_is_ready():
+            return False, "MoveIt move_action unavailable", 0, None
+        group = "left_arm" if scope == LEFT else "right_arm"
+        tcp_link = "left_flange" if scope == LEFT else "right_flange"
+        constraints = Constraints()
+        position = PositionConstraint()
+        position.header.frame_id = "world"
+        position.link_name = tcp_link
+        primitive = SolidPrimitive(type=SolidPrimitive.SPHERE)
+        primitive.dimensions = [0.002]
+        pose = Pose()
+        pose.position.x, pose.position.y, pose.position.z = position_xyz
+        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = (
+            orientation_xyzw
+        )
+        position.constraint_region.primitives = [primitive]
+        position.constraint_region.primitive_poses = [pose]
+        position.weight = 1.0
+        orientation = OrientationConstraint()
+        orientation.header.frame_id = "world"
+        orientation.link_name = tcp_link
+        orientation.orientation = pose.orientation
+        orientation.absolute_x_axis_tolerance = 0.01
+        orientation.absolute_y_axis_tolerance = 0.01
+        orientation.absolute_z_axis_tolerance = 0.01
+        orientation.weight = 1.0
+        constraints.position_constraints = [position]
+        constraints.orientation_constraints = [orientation]
+        move_goal = MoveGroup.Goal()
+        move_goal.request.group_name = group
+        move_goal.request.num_planning_attempts = 5
+        move_goal.request.allowed_planning_time = 5.0
+        move_goal.request.max_velocity_scaling_factor = velocity_scale
+        move_goal.request.max_acceleration_scaling_factor = velocity_scale
+        move_goal.request.goal_constraints = [constraints]
+        move_goal.planning_options = PlanningOptions(plan_only=True)
+        move_handle = await self._move_group.send_goal_async(move_goal)
+        if not move_handle.accepted:
+            return False, "MoveIt rejected verification planning request", 0, None
+        self._active_handles.append(move_handle)
+        move_result = await move_handle.get_result_async()
+        if move_handle in self._active_handles:
+            self._active_handles.remove(move_handle)
+        response = move_result.result
+        if response.error_code.val != MoveItErrorCodes.SUCCESS:
+            return (
+                False,
+                f"MoveIt verification planning failed ({response.error_code.val})",
+                response.error_code.val,
+                None,
+            )
+        return True, "planned", 0, response.planned_trajectory
+
+    async def _plan_joint_trajectory(self, scope, names, positions, velocity_scale=0.05):
+        if not self._move_group.server_is_ready():
+            return False, "MoveIt move_action unavailable", 0, None
+        group = "left_arm" if scope == LEFT else "right_arm"
+        constraints = Constraints()
+        for name, value in zip(names, positions):
+            constraints.joint_constraints.append(
+                JointConstraint(
+                    joint_name=name,
+                    position=value,
+                    tolerance_above=1e-4,
+                    tolerance_below=1e-4,
+                    weight=1.0,
+                )
+            )
+        move_goal = MoveGroup.Goal()
+        move_goal.request.group_name = group
+        move_goal.request.num_planning_attempts = 5
+        move_goal.request.allowed_planning_time = 5.0
+        move_goal.request.max_velocity_scaling_factor = velocity_scale
+        move_goal.request.max_acceleration_scaling_factor = velocity_scale
+        move_goal.request.goal_constraints = [constraints]
+        move_goal.planning_options = PlanningOptions(plan_only=True)
+        move_handle = await self._move_group.send_goal_async(move_goal)
+        if not move_handle.accepted:
+            return False, "MoveIt rejected return-pose planning request", 0, None
+        self._active_handles.append(move_handle)
+        move_result = await move_handle.get_result_async()
+        if move_handle in self._active_handles:
+            self._active_handles.remove(move_handle)
+        response = move_result.result
+        if response.error_code.val != MoveItErrorCodes.SUCCESS:
+            return (
+                False,
+                f"MoveIt return-pose planning failed ({response.error_code.val})",
+                response.error_code.val,
+                None,
+            )
+        return True, "planned", 0, response.planned_trajectory
+
+    async def _dispatch_trajectory(self, scope, trajectory):
+        source = trajectory.joint_trajectory
+        try:
+            canonical = self._core.canonical(scope)[0]
+            indices = [source.joint_names.index(name) for name in canonical]
+        except (KeyError, ValueError):
+            return False, "planned trajectory does not contain the expected arm joints"
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory.header = source.header
+        goal.trajectory.joint_names = canonical
+        for source_point in source.points:
+            point = JointTrajectoryPoint()
+            point.positions = [source_point.positions[index] for index in indices]
+            if source_point.velocities:
+                point.velocities = [source_point.velocities[index] for index in indices]
+            if source_point.accelerations:
+                point.accelerations = [
+                    source_point.accelerations[index] for index in indices
+                ]
+            point.time_from_start = source_point.time_from_start
+            goal.trajectory.points.append(point)
+        controller_handle = await self._trajectory[scope].send_goal_async(goal)
+        if not controller_handle.accepted:
+            return False, "trajectory controller rejected verification motion"
+        self._active_handles.append(controller_handle)
+        execution = await controller_handle.get_result_async()
+        if controller_handle in self._active_handles:
+            self._active_handles.remove(controller_handle)
+        if execution.status == GoalStatus.STATUS_CANCELED:
+            return False, "verification motion canceled"
+        if execution.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
+            return False, "trajectory controller execution failed"
+        return True, "execution complete"
+
+    @staticmethod
+    def _flange_orientation(transform):
+        q = transform.transform.rotation
+        return [q.x, q.y, q.z, q.w]
+
+    async def _calibration_check(self, handle):
+        req = handle.request
+        result = CalibrationCheck.Result()
+
+        def fail(reason, code=1):
+            result.success = False
+            result.code = code & 0xffff
+            result.reason = reason
+            self._finish_command()
+            handle.abort()
+            return result
+
+        ok, reason = self._core.require_owner(req.client_id, BOTH, self._now())
+        if not ok:
+            return fail(reason)
+        if self._core.active_scope is not None:
+            return fail("another motion command is already active")
+        try:
+            per_arm_targets = {
+                LEFT: verification_targets(
+                    self._placement_data, "left_arm", req.clearance_m,
+                    req.transit_height_m
+                ),
+                RIGHT: verification_targets(
+                    self._placement_data, "right_arm", req.clearance_m,
+                    req.transit_height_m
+                ),
+            }
+        except WorkcellError as exc:
+            return fail(str(exc))
+        if not req.plan_only:
+            ready, reason = self._physical_robot_status_ready()
+            if not ready:
+                return fail(reason)
+
+        try:
+            flange_transforms = {
+                LEFT: self._tf_buffer.lookup_transform(
+                    "world", "left_flange", rclpy.time.Time()
+                ),
+                RIGHT: self._tf_buffer.lookup_transform(
+                    "world", "right_flange", rclpy.time.Time()
+                ),
+            }
+        except TransformException as exc:
+            return fail(f"flange TF unavailable: {exc}")
+        start_joints = {
+            arm: self._core.canonical(arm)[:2] for arm in (LEFT, RIGHT)
+        }
+        orientations = {
+            arm: self._flange_orientation(flange_transforms[arm])
+            for arm in (LEFT, RIGHT)
+        }
+
+        stages = []
+        for arm, arm_name in ((LEFT, "left"), (RIGHT, "right")):
+            for target in per_arm_targets[arm]:
+                stages.append((arm, arm_name, target["point"], "transit", target["transit"]))
+                stages.append((arm, arm_name, target["point"], "checkpoint", target["checkpoint"]))
+                if not req.plan_only:
+                    stages.append((arm, arm_name, target["point"], "retract", target["transit"]))
+            if not req.plan_only:
+                stages.append((arm, arm_name, "START", "return", None))
+
+        total = len(stages)
+        completed = 0
+        self._core.active_scope = BOTH
+        for arm, arm_name, point_name, phase, position in stages:
+            if handle.is_cancel_requested:
+                self._cancel_motion()
+                self._finish_command()
+                result.reason = "five-point verification canceled"
+                handle.canceled()
+                return result
+            owned, reason = self._core.require_owner(req.client_id, BOTH, self._now())
+            if not owned:
+                return fail(reason)
+            if not req.plan_only:
+                ready, reason = self._physical_robot_status_ready()
+                if not ready:
+                    return fail(reason)
+
+            self._core.control_state = PLANNING
+            self._core.active_scope = BOTH
+            self._active_command = f"five-point {arm_name} {point_name} {phase} planning"
+            feedback = CalibrationCheck.Feedback(
+                arm=arm_name,
+                point=point_name,
+                phase="planning " + phase,
+                completed=completed,
+                total=total,
+                progress=float(completed) / total,
+            )
+            handle.publish_feedback(feedback)
+            if phase == "return":
+                names, positions = start_joints[arm]
+                planned, reason, code, trajectory = await self._plan_joint_trajectory(
+                    arm, names, positions
+                )
+            else:
+                planned, reason, code, trajectory = await self._plan_pose_trajectory(
+                    arm, position, orientations[arm]
+                )
+            if handle.is_cancel_requested:
+                self._cancel_motion()
+                self._finish_command()
+                result.reason = "five-point verification canceled"
+                handle.canceled()
+                return result
+            if not planned:
+                return fail(f"{arm_name} {point_name} {phase}: {reason}", code or 1)
+            if not req.plan_only:
+                self._core.control_state = EXECUTING
+                self._core.active_scope = BOTH
+                self._active_command = f"five-point {arm_name} {point_name} {phase} executing"
+                feedback.phase = "executing " + phase
+                handle.publish_feedback(feedback)
+                executed, reason = await self._dispatch_trajectory(arm, trajectory)
+                if not executed:
+                    if handle.is_cancel_requested:
+                        self._finish_command()
+                        result.reason = "five-point verification canceled"
+                        handle.canceled()
+                        return result
+                    return fail(f"{arm_name} {point_name} {phase}: {reason}")
+            completed += 1
+            self._progress = float(completed) / total
+            handle.publish_feedback(
+                CalibrationCheck.Feedback(
+                    arm=arm_name,
+                    point=point_name,
+                    phase="planned" if req.plan_only else "complete " + phase,
+                    completed=completed,
+                    total=total,
+                    progress=self._progress,
+                )
+            )
+
+        result.success = True
+        result.reason = (
+            "all five-point verification targets planned successfully"
+            if req.plan_only
+            else "left then right five-point verification complete; both arms returned"
+        )
+        self._finish_command()
+        handle.succeed()
+        return result
 
     async def _cartesian_pose(self, handle):
         req = handle.request

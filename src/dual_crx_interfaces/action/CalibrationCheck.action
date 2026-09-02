@@ -1,0 +1,15 @@
+string client_id
+bool plan_only
+float64 clearance_m
+float64 transit_height_m
+---
+bool success
+uint16 code
+string reason
+---
+string arm
+string point
+string phase
+uint8 completed
+uint8 total
+float32 progress

@@ -7,10 +7,12 @@ import time
 
 import rclpy
 from control_msgs.msg import JointJog
+from dual_crx_interfaces.action import CalibrationCheck
 from dual_crx_interfaces.action import JointPosition
 from dual_crx_interfaces.action import CartesianPose
 from dual_crx_interfaces.msg import SystemState
-from dual_crx_interfaces.srv import AcquireControl, CartesianJog, JointJog as JointJogSrv
+from dual_crx_interfaces.srv import (AcquireControl, CartesianJog, GetWorkcellInfo,
+                                     JointJog as JointJogSrv)
 from dual_crx_interfaces.srv import ReleaseControl, SoftwareStop
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -31,6 +33,10 @@ class Client(Node):
         self.stop = self.create_client(SoftwareStop, "/dual_crx/stop")
         self.position = ActionClient(self, JointPosition, "/dual_crx/joint_position")
         self.cartesian = ActionClient(self, CartesianPose, "/dual_crx/cartesian_pose")
+        self.calibration_check = ActionClient(
+            self, CalibrationCheck, "/dual_crx/calibration_check")
+        self.workcell_info = self.create_client(
+            GetWorkcellInfo, "/dual_crx/workcell_info")
 
     def _state(self, msg): self.state = msg
 
@@ -65,6 +71,18 @@ class Client(Node):
         if not handle.accepted: raise RuntimeError("Cartesian goal rejected at transport boundary")
         result = handle.get_result_async()
         self.wait(result.done, timeout, "Cartesian pose result")
+        return result.result().result
+
+    def calibration_action(self, goal, timeout=20.0):
+        self.wait(self.calibration_check.server_is_ready, 10.0,
+                  "calibration-check action")
+        sent = self.calibration_check.send_goal_async(goal)
+        self.wait(sent.done, 5.0, "calibration-check goal acceptance")
+        handle = sent.result()
+        if not handle.accepted:
+            raise RuntimeError("calibration-check goal rejected at transport boundary")
+        result = handle.get_result_async()
+        self.wait(result.done, timeout, "calibration-check result")
         return result.result().result
 
 
@@ -227,6 +245,22 @@ def main():
             servo_jog(client, arm, 0.005)
             servo_jog(client, arm, -0.005)
             release(client, arm)
+
+        workcell = client.service(client.workcell_info, GetWorkcellInfo.Request())
+        if not workcell.loaded or not workcell.placement_file or len(workcell.sha256) != 64:
+            raise RuntimeError("gateway did not report the loaded workcell identity")
+        print("EVIDENCE workcell:", workcell.placement_file, workcell.sha256[:12])
+
+        # Default mock placement intentionally has no reviewed five-point profile.
+        # The action must reject it deterministically without sending controller motion.
+        acquire(client, BOTH)
+        check = client.calibration_action(CalibrationCheck.Goal(
+            client_id="phase1-test", plan_only=True,
+            clearance_m=0.020, transit_height_m=0.080), 10.0)
+        if check.success or "valid" not in check.reason:
+            raise RuntimeError("unreviewed mock placement was not rejected")
+        print("EVIDENCE five-point safety rejection:", check.reason)
+        release(client, BOTH)
         print("PASS live public API mock integration")
     finally:
         stop(client, "integration cleanup")

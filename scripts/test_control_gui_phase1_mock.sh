@@ -8,7 +8,7 @@ ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-$((100 + $$ % 100))}"
 export ROS_DOMAIN_ID
 export ROS_HOME="$ARTIFACT_DIR/ros_home"
 export ROS_LOG_DIR="$ARTIFACT_DIR/ros_logs"
-export QT_QPA_PLATFORM=offscreen
+export QT_QPA_PLATFORM=minimal
 mkdir -p "$ROS_HOME" "$ROS_LOG_DIR"
 LAUNCH_PID=""
 

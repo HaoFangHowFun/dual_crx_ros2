@@ -13,11 +13,12 @@ complete/fresh dual-arm state, leases, validation, mock/physical mode, planning,
 execution, cancellation, and stop semantics. The standalone PyQt5 GUI is a client and
 contains no direct trajectory-controller command path.
 
-The GUI also includes Phase 2 single-arm Cartesian TCP pose Validate/Plan/Execute and
-press-and-hold MoveIt Servo jog for `X/Y/Z/Rx/Ry/Rz`. Both paths remain behind the same
-gateway lease, deadman, validation, Stop and physical safety checks. On physical robots,
-start the GUI stack in connection-only mode first, confirm fresh state, then enable
-motion per arm from the GUI before sending commands.
+The GUI also includes single-arm Cartesian TCP pose Validate/Plan/Execute,
+press-and-hold MoveIt Servo jog for `X/Y/Z/Rx/Ry/Rz`, selectable world/arm-base frames,
+loaded-calibration identity, and a guarded left-then-right five-point verification.
+All paths remain behind the same gateway lease, deadman, validation, Stop and physical
+safety checks. On physical robots, start the GUI stack in connection-only mode first,
+confirm fresh state, then enable motion per arm from the GUI before sending commands.
 
 Run the automated mock acceptance workflow:
 
@@ -73,18 +74,20 @@ offline, stale, read-only, faulted, or owned by another client.
 #### Cartesian pose planning
 
 1. Open **Cartesian pose** and select the left or right arm.
-2. Click **Copy current TCP**. Position fields are metres; orientation is a normalized
-   quaternion (`qx`, `qy`, `qz`, `qw`) in the `world` frame.
+2. Select **Table / World** or **Robot Base**, then click **Copy current TCP**. Position
+   fields are metres and orientation is a normalized quaternion (`qx`, `qy`, `qz`,
+   `qw`) in the resolved frame shown beside the selector.
 3. Click **Validate**, **Plan**, and then **Execute** as separate operations.
 4. Begin with the copied current pose before trying a small offset. MoveIt performs IK,
    joint-limit, and collision-aware planning before execution is available.
 
 #### MoveIt Servo Cartesian jog
 
-The bottom of **Cartesian pose** provides press-and-hold world-frame controls:
+The bottom of **Cartesian pose** provides press-and-hold controls in the selected frame:
 
 - `X/Y/Z +/-` translate the selected TCP.
 - `Rx/Ry/Rz +/-` rotate the selected TCP.
+- **Jog frame** can follow the pose reference or use the selected tool/TCP axes.
 - Start with `2 mm/s` linear and `1 deg/s` angular speed.
 - Release stops the command stream. The gateway and Servo command timeouts provide
   additional deadman behavior.
@@ -93,6 +96,24 @@ GUI speed choices are bounded to 2–20 mm/s and 1–10 deg/s. The gateway indep
 enforces maximums of 0.03 m/s and 0.2 rad/s, validates ownership, timestamp, TF, and
 arm/TCP pairing. MoveIt Servo also applies joint-limit, singularity, and collision
 handling.
+
+#### Five-point calibration verification
+
+The **5-point check** tab reads the five table points and signed EEF Z corrections from
+the placement file loaded by this launch. **Plan / RViz preview** checks all left and
+right targets without controller execution. **RUN left → right** reserves both arms,
+captures both starting joint poses and flange orientations, runs the left arm through
+all points and returns it, then does the same for the right arm. Transit/retract moves
+occur above each checkpoint. Progress, Cancel and the global software STOP remain live
+for the complete sequence.
+
+The GUI defaults to 20 mm checkpoint clearance and 80 mm transit height. Both GUI and
+gateway enforce a 15 mm minimum clearance because the accepted calibration has a
+5.22 mm worst-point error; 3 mm is deliberately rejected. The combined MoveIt model
+also contains a collision box whose top is table Z=0 and whose area covers the calibrated
+five-point region. Before physical execution, move both arms well apart with the tools
+in their intended verification orientations, clear the work area, verify the displayed
+active file/profile/hash, and keep the hardware E-stop accessible.
 
 The red **STOP** is a software stop/cancel path. It is not a FANUC E-stop and does not
 replace DCS or controller safety. Close the GUI, then press `Ctrl+C` in terminal 1 when
@@ -141,6 +162,9 @@ Recommended physical GUI workflow:
 3. Confirm that arm reports `motion on`, `ok`, `tp off`, and `estop off`.
 4. Begin with joint jog or a very small planned move on the enabled arm only.
 5. Use **Disable Motion** after the test, then close the GUI and stop the launch.
+
+The automatic five-point check additionally requires both arms to report motion on,
+error off, TP off and E-stop off. It never enables motion automatically.
 
 Do not request simultaneous dual-arm motion until both single-arm GUI motion tests pass
 and a reviewed physical placement candidate has been activated.

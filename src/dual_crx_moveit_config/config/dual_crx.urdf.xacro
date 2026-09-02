@@ -4,6 +4,7 @@
   <xacro:arg name="left_rpy" default="0.0 0.0 0.0"/>
   <xacro:arg name="right_xyz" default="0.0 -0.3 0.0"/>
   <xacro:arg name="right_rpy" default="0.0 0.0 0.0"/>
+  <xacro:arg name="table_collision_size" default="0.30"/>
 
   <xacro:include filename="$(find fanuc_crx_description)/urdf/crx5ia_urdf_macro.xacro"/>
 
@@ -13,6 +14,30 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
     <parent link="world"/>
     <child link="table_frame"/>
+  </joint>
+
+  <!-- Protect the calibrated five-point area. The box top is table Z=0. -->
+  <link name="calibration_table_surface">
+    <visual>
+      <origin xyz="0 0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <box size="$(arg table_collision_size) $(arg table_collision_size) 0.04"/>
+      </geometry>
+      <material name="calibration_table_gray">
+        <color rgba="0.45 0.45 0.45 0.45"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <box size="$(arg table_collision_size) $(arg table_collision_size) 0.04"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="table_to_calibration_surface" type="fixed">
+    <parent link="table_frame"/>
+    <child link="calibration_table_surface"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
   <link name="left_ee_mount"/>

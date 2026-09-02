@@ -1,0 +1,13 @@
+---
+bool loaded
+bool valid
+string world_frame
+string table_frame
+string placement_file
+string profile_name
+string generated_at
+string source_calibration
+string sha256
+float64 left_eef_z_offset_m
+float64 right_eef_z_offset_m
+string reason

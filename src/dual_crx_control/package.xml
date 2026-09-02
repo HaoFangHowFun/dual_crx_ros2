@@ -13,6 +13,7 @@
 
   <depend>control_msgs</depend>
   <depend>dual_crx_interfaces</depend>
+  <depend>fanuc_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>moveit_msgs</depend>
   <depend>std_srvs</depend>
@@ -23,6 +24,7 @@
   <depend>shape_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>trajectory_msgs</depend>
+  <exec_depend>python3-yaml</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
 
   <export>

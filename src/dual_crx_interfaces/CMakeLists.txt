@@ -16,9 +16,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/Heartbeat.srv"
   "srv/JointJog.srv"
   "srv/CartesianJog.srv"
+  "srv/GetWorkcellInfo.srv"
   "srv/SoftwareStop.srv"
   "action/JointPosition.action"
   "action/CartesianPose.action"
+  "action/CalibrationCheck.action"
   DEPENDENCIES action_msgs builtin_interfaces control_msgs geometry_msgs sensor_msgs
 )
 

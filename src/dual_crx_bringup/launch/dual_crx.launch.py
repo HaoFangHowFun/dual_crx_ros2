@@ -210,6 +210,10 @@ def launch_setup(context, *args, **kwargs):
     left_rpy = _as_string(placement["left_arm"]["rpy"])
     right_xyz = _as_string(placement["right_arm"]["xyz"])
     right_rpy = _as_string(placement["right_arm"]["rpy"])
+    inferred_square = placement.get("inferred_square", {})
+    table_collision_size = max(
+        0.30, float(inferred_square.get("side_length_m", 0.20)) + 0.10
+    )
     merger_script = os.path.join(
         bringup_prefix, "lib", "dual_crx_bringup", "joint_state_merger.py"
     )
@@ -331,6 +335,7 @@ def launch_setup(context, *args, **kwargs):
                 "left_rpy": left_rpy,
                 "right_xyz": right_xyz,
                 "right_rpy": right_rpy,
+                "table_collision_size": str(table_collision_size),
             },
         )
         .robot_description_semantic(file_path="config/dual_crx.srdf")
@@ -386,6 +391,7 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{
                 "operating_mode": "mock" if use_mock.perform(context) == "true" else "physical",
                 "allow_physical_control": allow_physical_control,
+                "robot_placement_file": placement_path,
             }],
         )
     )
