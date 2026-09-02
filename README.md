@@ -186,9 +186,19 @@ UTOOL at the physical tip when tool-local Z changes orientation between samples.
 
 The active physical placement is stored locally at
 `src/dual_crx_description/config/robot_placement_physical.yaml`. Sessions, candidates,
-and this active file are git-ignored because they are installation-specific. Combined
-physical launch fails safe if the file is absent or not marked valid; it never silently
-loads the mock placement.
+and this active file are git-ignored because they are installation-specific. Reviewed
+profiles intended for the same unchanged installation can be committed under
+`calibration_profiles/`. After pulling on another control computer, activate one with:
+
+```bash
+./scripts/table_calibration_tool.py activate \
+  calibration_profiles/dual_crx_lab_table_2026-09-02.yaml
+```
+
+Activation creates the local runtime file; restart the physical launch to load it.
+Combined physical launch fails safe if the file is absent or not marked valid; it never
+silently loads the mock placement. See [`calibration_profiles/README.md`](calibration_profiles/README.md)
+for transfer and physical-verification constraints.
 
 #### Physical calibration record: 2026-09-02
 
@@ -204,6 +214,10 @@ maximum point error, and 3 mm cross-arm error:
 This is accepted as a coarse physical/RViz calibration. Use at least 15 mm additional
 clearance for initial physical validation and do not treat it as a precision contact or
 collision-clearance certificate.
+
+This reviewed result is tracked as
+`calibration_profiles/dual_crx_lab_table_2026-09-02.yaml` so another computer controlling
+the same unchanged installation can activate exactly the same table coordinate system.
 
 ## Important: mock and physical commands are different
 

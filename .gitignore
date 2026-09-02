@@ -31,7 +31,8 @@ Thumbs.db
 *.mp4
 *.webm
 
-# Local physical calibration data (may contain lab-specific geometry)
+# Local physical calibration data (may contain unreviewed lab-specific geometry).
+# Reviewed, shareable profiles under calibration_profiles/ are intentionally tracked.
 calibration_sessions/
 calibration_candidates/
 src/dual_crx_description/config/robot_placement_physical.yaml

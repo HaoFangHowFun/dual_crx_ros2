@@ -6,6 +6,11 @@ import pytest
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "table_calibration_tool.py"
+PROFILE = (
+    Path(__file__).parents[1]
+    / "calibration_profiles"
+    / "dual_crx_lab_table_2026-09-02.yaml"
+)
 SPEC = importlib.util.spec_from_file_location("table_calibration_tool", SCRIPT)
 tool = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -187,3 +192,22 @@ def test_collinear_table_points_are_rejected():
 
     with pytest.raises(tool.CalibrationError, match="collinear"):
         tool.solve_session(data)
+
+
+def test_reviewed_profile_can_create_local_active_placement(tmp_path):
+    profile = tool.load_yaml(PROFILE)
+    output = tmp_path / "robot_placement_physical.yaml"
+
+    backup = tool.activate_candidate_file(PROFILE, output)
+    active = tool.load_yaml(output)
+
+    assert backup is None
+    assert profile["valid"] is True
+    assert active["profile_name"] == "dual_crx_lab_table_2026-09-02"
+    assert active["left_arm"] == profile["left_arm"]
+    assert active["right_arm"] == profile["right_arm"]
+    assert active["coordinate_contract"]["eef_z_offset_m"] == {
+        "left_arm": -0.035,
+        "right_arm": -0.035,
+    }
+    assert active["source_candidate"] == str(PROFILE.resolve())

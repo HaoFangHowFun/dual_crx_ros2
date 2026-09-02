@@ -1,0 +1,108 @@
+schema_version: 1
+profile_name: dual_crx_lab_table_2026-09-02
+installation_scope: Same dual CRX robots and unchanged physical table installation
+calibration_method: center_square
+valid: true
+generated_at: '2026-09-02T21:14:12+00:00'
+coordinate_contract:
+  world_frame: table_frame
+  origin: CENTER
+  axis_definition: +X and +Y follow the four signed corner labels; +Z = +X cross +Y
+  placement_meaning: table_frame_from_ros_base_link
+  translation_unit: m
+  rotation: URDF fixed-axis roll pitch yaw in radians
+  measurement_frame: fanuc_world
+  base_to_fanuc_world_z_m: 0.185
+  eef_z_offset_convention: contact_Z_in_measurement_frame = entered_Z + eef_z_offset_m
+  eef_z_offset_m:
+    left_arm: -0.035
+    right_arm: -0.035
+inferred_square:
+  half_extent_m: 0.07350699466967789
+  side_length_m: 0.14701398933935578
+  point_coordinates_m:
+    CENTER:
+    - 0.0
+    - 0.0
+    - 0.0
+    X_PLUS_Y_PLUS:
+    - 0.07350699466967789
+    - 0.07350699466967789
+    - 0.0
+    X_PLUS_Y_MINUS:
+    - 0.07350699466967789
+    - -0.07350699466967789
+    - 0.0
+    X_MINUS_Y_PLUS:
+    - -0.07350699466967789
+    - 0.07350699466967789
+    - 0.0
+    X_MINUS_Y_MINUS:
+    - -0.07350699466967789
+    - -0.07350699466967789
+    - 0.0
+left_arm:
+  xyz:
+  - -0.41753014825629947
+  - -0.5522928464841957
+  - 0.25506070218176946
+  rpy:
+  - 0.01510771115559298
+  - 0.008129018481338504
+  - 1.5595098067795556
+right_arm:
+  xyz:
+  - 0.2559220457996696
+  - -0.5374404144251925
+  - 0.06217679014864952
+  rpy:
+  - 0.0028907951805920737
+  - -0.0022817890374839246
+  - -1.9995372052542e-05
+quality:
+  thresholds:
+    rms_m: 0.005
+    max_point_m: 0.006
+    cross_arm_max_m: 0.003
+  arms:
+    left_arm:
+      rms_m: 0.0037639245507798355
+      max_m: 0.005221807498928746
+      per_point_m:
+        CENTER: 0.0
+        X_PLUS_Y_PLUS: 0.005221807498928746
+        X_PLUS_Y_MINUS: 0.0037145717071833026
+        X_MINUS_Y_PLUS: 0.002022999542479047
+        X_MINUS_Y_MINUS: 0.005067326360840629
+      rotation_determinant: 1.0000000000000002
+      raw_axis_angle_deg: 89.45667656379777
+      inferred_square_half_extent_m: 0.0734841118540942
+      measured_axis_spans_m:
+      - 0.14597519342854115
+      - 0.14796455798095698
+    right_arm:
+      rms_m: 0.003595191622691961
+      max_m: 0.004992901683504
+      per_point_m:
+        CENTER: 0.0
+        X_PLUS_Y_PLUS: 0.004462250937035143
+        X_PLUS_Y_MINUS: 0.004057794667299833
+        X_MINUS_Y_PLUS: 0.0018222419738325715
+        X_MINUS_Y_MINUS: 0.004992901683504
+      rotation_determinant: 1.0
+      raw_axis_angle_deg: 88.74218482956162
+      inferred_square_half_extent_m: 0.07352987748526159
+      measured_axis_spans_m:
+      - 0.1454551729932628
+      - 0.1486820561449834
+  cross_arm_per_point_m:
+    CENTER: 0.0
+    X_PLUS_Y_PLUS: 0.0010198158833145201
+    X_PLUS_Y_MINUS: 0.0009036621145671796
+    X_MINUS_Y_PLUS: 0.0017454195613145582
+    X_MINUS_Y_MINUS: 0.0012715198550018012
+  cross_arm_max_m: 0.0017454195613145582
+calibration_notes:
+  eef_z_offset: Both entered EEF positions were corrected by -35 mm along measurement-frame Z.
+  intended_use: Coarse physical and RViz alignment; not a precision contact certificate.
+  initial_clearance: Use at least 15 mm additional clearance for first physical validation.

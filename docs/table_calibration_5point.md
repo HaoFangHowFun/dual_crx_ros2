@@ -136,6 +136,21 @@ The resulting `xyz/rpy` values mean `table_frame -> left_base_link` and
 use the explicit table frame. Physical combined-arm launch requires this file to contain
 `valid: true`; it never falls back to the mock placement.
 
+### Reuse a reviewed profile on another computer
+
+Raw sessions, candidates, and the active runtime file stay local and are git-ignored.
+A reviewed result may be stored under `calibration_profiles/` when it is explicitly
+intended for the same robots and unchanged table installation. After `git pull`, run:
+
+```bash
+./scripts/table_calibration_tool.py activate \
+  calibration_profiles/dual_crx_lab_table_2026-09-02.yaml
+```
+
+This creates a fresh local `robot_placement_physical.yaml`; it does not move the robots.
+Restart the physical launch and repeat the safe TF/RViz and single-arm checks below. Do
+not reuse the profile after a robot base, table, or relevant TCP setup has moved.
+
 After activation, start connection-only and inspect TF/RViz before enabling motion:
 
 ```bash
