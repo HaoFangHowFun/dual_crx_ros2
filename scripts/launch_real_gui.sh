@@ -9,10 +9,11 @@ source "$SCRIPT_DIR/codex_env.sh"
 
 LEFT_IP="${DUAL_CRX_LEFT_IP:-192.168.2.100}"
 RIGHT_IP="${DUAL_CRX_RIGHT_IP:-192.168.1.100}"
+PLACEMENT_FILE="${DUAL_CRX_PLACEMENT_FILE:-$WORKSPACE_DIR/src/dual_crx_description/config/robot_placement_physical.yaml}"
 LAUNCH_RVIZ=false
 
 usage() {
-  echo "Usage: $0 [--left-ip ADDRESS] [--right-ip ADDRESS] [--launch-rviz]"
+  echo "Usage: $0 [--left-ip ADDRESS] [--right-ip ADDRESS] [--placement-file PATH] [--launch-rviz]"
   echo
   echo "Starts both physical arms, MoveIt, and the unified control server for GUI use."
   echo "Physical GUI startup always begins in connection-only mode."
@@ -28,6 +29,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --right-ip)
       RIGHT_IP="${2:?--right-ip requires an address}"
+      shift 2
+      ;;
+    --placement-file)
+      PLACEMENT_FILE="${2:?--placement-file requires a path}"
       shift 2
       ;;
     --launch-rviz)
@@ -53,10 +58,18 @@ done
 
 cd "$WORKSPACE_DIR"
 
+if [ ! -f "$PLACEMENT_FILE" ]; then
+  echo "Physical placement file not found: $PLACEMENT_FILE" >&2
+  echo "Collect, solve, and activate it with scripts/table_calibration_tool.py first." >&2
+  exit 2
+fi
+
 echo "Starting GUI physical stack in CONNECTION-ONLY mode."
 
 exec ros2 launch dual_crx_bringup dual_crx.launch.py \
   use_mock:=false \
+  robot_placement_file:="$PLACEMENT_FILE" \
+  require_valid_placement:=true \
   launch_rviz:="$LAUNCH_RVIZ" \
   launch_control_server:=true \
   allow_physical_control:=true \

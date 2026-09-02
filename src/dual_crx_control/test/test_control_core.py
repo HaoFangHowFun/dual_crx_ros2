@@ -1,7 +1,7 @@
 import math
 import pytest
 
-from dual_crx_control.core import BOTH, LEFT, RIGHT, ControlCore, JOINTS
+from dual_crx_control.core import BOTH, LEFT, READY, RIGHT, ControlCore, JOINTS
 
 
 def complete(core, now=10.0):

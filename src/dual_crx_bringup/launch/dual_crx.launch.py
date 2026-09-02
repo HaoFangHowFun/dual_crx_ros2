@@ -25,14 +25,26 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
-def _load_robot_placement():
-    config_path = os.path.join(
-        get_package_share_directory("dual_crx_description"),
-        "config",
-        "robot_placement.yaml",
-    )
+def _load_robot_placement(config_path, require_valid=False):
     with open(config_path, "r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        placement = yaml.safe_load(handle)
+    if not isinstance(placement, dict):
+        raise RuntimeError(f"Invalid robot placement YAML: {config_path}")
+    if require_valid and placement.get("valid") is not True:
+        raise RuntimeError(
+            "Physical robot placement is missing or not marked valid. "
+            "Run scripts/table_calibration_tool.py and explicitly activate a valid candidate."
+        )
+    for arm in ("left_arm", "right_arm"):
+        if arm not in placement:
+            raise RuntimeError(f"Robot placement is missing {arm}: {config_path}")
+        for key in ("xyz", "rpy"):
+            values = placement[arm].get(key)
+            if not isinstance(values, list) or len(values) != 3:
+                raise RuntimeError(f"Robot placement {arm}.{key} must contain 3 values")
+            if not all(isinstance(value, (int, float)) for value in values):
+                raise RuntimeError(f"Robot placement {arm}.{key} must be numeric")
+    return placement
 
 
 def _load_mock_initial_positions():
@@ -68,6 +80,8 @@ def _mock_arm_nodes(
             " ",
             "prefix:=",
             prefix,
+            " ",
+            "parent_link:=table_frame",
             " ",
             "child_link:=",
             child_link,
@@ -162,7 +176,11 @@ def _mock_arm_nodes(
 
 
 def launch_setup(context, *args, **kwargs):
-    placement = _load_robot_placement()
+    placement_path = LaunchConfiguration("robot_placement_file").perform(context)
+    require_valid_placement = (
+        LaunchConfiguration("require_valid_placement").perform(context) == "true"
+    )
+    placement = _load_robot_placement(placement_path, require_valid_placement)
     mock_initial_positions = _load_mock_initial_positions()
     bringup_prefix = get_package_prefix("dual_crx_bringup")
 
@@ -261,6 +279,7 @@ def launch_setup(context, *args, **kwargs):
                         "motion_control": left_motion_control,
                         "prefix": "left_",
                         "namespace": "left_arm",
+                        "parent_link": "table_frame",
                         "child_link": "left_ee_mount",
                         "launch_rviz": "false",
                         "origin_x": str(placement["left_arm"]["xyz"][0]),
@@ -283,6 +302,7 @@ def launch_setup(context, *args, **kwargs):
                         "motion_control": right_motion_control,
                         "prefix": "right_",
                         "namespace": "right_arm",
+                        "parent_link": "table_frame",
                         "child_link": "right_ee_mount",
                         "launch_rviz": "false",
                         "origin_x": str(placement["right_arm"]["xyz"][0]),
@@ -409,6 +429,22 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("use_mock", default_value="true"),
+            DeclareLaunchArgument(
+                "robot_placement_file",
+                default_value=PathJoinSubstitution(
+                    [
+                        FindPackageShare("dual_crx_description"),
+                        "config",
+                        "robot_placement.yaml",
+                    ]
+                ),
+                description="YAML containing table_frame/world to both ROS base_link poses.",
+            ),
+            DeclareLaunchArgument(
+                "require_valid_placement",
+                default_value="false",
+                description="Require top-level valid: true (recommended for physical dual-arm launch).",
+            ),
             DeclareLaunchArgument("launch_rviz", default_value="true"),
             DeclareLaunchArgument("launch_control_server", default_value="true"),
             DeclareLaunchArgument(

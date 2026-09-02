@@ -30,3 +30,8 @@ Thumbs.db
 *.mcap
 *.mp4
 *.webm
+
+# Local physical calibration data (may contain lab-specific geometry)
+calibration_sessions/
+calibration_candidates/
+src/dual_crx_description/config/robot_placement_physical.yaml

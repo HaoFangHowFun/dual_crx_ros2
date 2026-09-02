@@ -11,10 +11,14 @@ class Signal(QtCore.QObject):
     emitted = QtCore.pyqtSignal(object)
 
 
+class RobotStatusSignal(QtCore.QObject):
+    emitted = QtCore.pyqtSignal(int, object)
+
+
 class FakeApi:
     def __init__(self):
         self._state_signal = Signal()
-        self._robot_status_signal = Signal()
+        self._robot_status_signal = RobotStatusSignal()
         self._result_signal = Signal()
         self.state_received = self._state_signal.emitted
         self.robot_status_received = self._robot_status_signal.emitted

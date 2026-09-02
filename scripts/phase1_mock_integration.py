@@ -121,6 +121,11 @@ def plan_execute(client, group, scope, positions):
 
 
 def servo_jog(client, arm, velocity):
+    client.wait(
+        client.cartesian_jog.service_is_ready,
+        5.0,
+        client.cartesian_jog.srv_name,
+    )
     pose = client.state.left_end_effector if arm == LEFT else client.state.right_end_effector
     before = (pose.pose.position.x, pose.pose.position.y, pose.pose.position.z)
     tcp = "left_flange" if arm == LEFT else "right_flange"

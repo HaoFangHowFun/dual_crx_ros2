@@ -10,11 +10,13 @@ source "$SCRIPT_DIR/codex_env.sh"
 ARM=""
 LEFT_IP="${DUAL_CRX_LEFT_IP:-192.168.2.100}"
 RIGHT_IP="${DUAL_CRX_RIGHT_IP:-192.168.1.100}"
+PLACEMENT_FILE="${DUAL_CRX_PLACEMENT_FILE:-$WORKSPACE_DIR/src/dual_crx_description/config/robot_placement_physical.yaml}"
 MOTION_CONTROL=0
 CONFIRMED=0
 
 usage() {
   echo "Usage: $0 --arm left|right|both [--left-ip ADDRESS] [--right-ip ADDRESS]"
+  echo "          [--placement-file PATH]"
   echo "          [--enable-motion --yes-i-understand] [-- ROS_LAUNCH_ARGUMENTS...]"
   echo
   echo "Default mode is connection-only (motion_control=0)."
@@ -33,6 +35,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --right-ip)
       RIGHT_IP="${2:?--right-ip requires an address}"
+      shift 2
+      ;;
+    --placement-file)
+      PLACEMENT_FILE="${2:?--placement-file requires a path}"
       shift 2
       ;;
     --enable-motion)
@@ -83,8 +89,15 @@ else
 fi
 
 if [ "$ARM" = "both" ]; then
+  if [ ! -f "$PLACEMENT_FILE" ]; then
+    echo "Physical placement file not found: $PLACEMENT_FILE" >&2
+    echo "Calibrate and activate it before a combined physical launch." >&2
+    exit 2
+  fi
   exec ros2 launch dual_crx_bringup dual_crx.launch.py \
     use_mock:=false \
+    robot_placement_file:="$PLACEMENT_FILE" \
+    require_valid_placement:=true \
     left_robot_ip:="$LEFT_IP" \
     right_robot_ip:="$RIGHT_IP" \
     left_motion_control:="$MOTION_CONTROL" \

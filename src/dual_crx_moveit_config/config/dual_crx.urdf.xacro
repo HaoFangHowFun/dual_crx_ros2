@@ -8,14 +8,20 @@
   <xacro:include filename="$(find fanuc_crx_description)/urdf/crx5ia_urdf_macro.xacro"/>
 
   <link name="world"/>
+  <link name="table_frame"/>
+  <joint name="world_to_table" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="world"/>
+    <child link="table_frame"/>
+  </joint>
 
   <link name="left_ee_mount"/>
-  <xacro:crx5ia prefix="left_" parent="world" child="left_ee_mount">
+  <xacro:crx5ia prefix="left_" parent="table_frame" child="left_ee_mount">
     <origin xyz="$(arg left_xyz)" rpy="$(arg left_rpy)"/>
   </xacro:crx5ia>
 
   <link name="right_ee_mount"/>
-  <xacro:crx5ia prefix="right_" parent="world" child="right_ee_mount">
+  <xacro:crx5ia prefix="right_" parent="table_frame" child="right_ee_mount">
     <origin xyz="$(arg right_xyz)" rpy="$(arg right_rpy)"/>
   </xacro:crx5ia>
 </robot>

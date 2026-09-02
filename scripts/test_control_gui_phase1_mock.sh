@@ -45,6 +45,8 @@ echo "[2/5] Unit tests"
 colcon test --packages-select dual_crx_control --event-handlers console_direct+ \
   2>&1 | tee "$ARTIFACT_DIR/unit.log"
 colcon test-result --verbose 2>&1 | tee "$ARTIFACT_DIR/test_results.log"
+python3 -m pytest -q test/test_table_calibration_*.py \
+  2>&1 | tee "$ARTIFACT_DIR/table_calibration_unit.log"
 
 echo "[3/5] Headless GUI smoke"
 python3 -m pytest -q src/dual_crx_gui/test/test_gui_smoke.py \

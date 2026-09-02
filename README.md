@@ -113,8 +113,14 @@ MoveIt, MoveIt Servo, and the unified control server without requesting motion a
 
 ```bash
 cd ~/dual_crx_ros2
-./scripts/launch_real_gui.sh
+./scripts/launch_real_gui.sh --launch-rviz
 ```
+
+Omit `--launch-rviz` when only the control GUI is needed. RViz is intentionally disabled
+by default. With RViz enabled, set its fixed frame to `table_frame`; the robot models
+update continuously from the two physical joint-state streams. The calibrated base poses
+are fixed transforms and change only when a new candidate is activated and the launch is
+restarted.
 
 Open a second terminal for the GUI:
 
@@ -137,7 +143,67 @@ Recommended physical GUI workflow:
 5. Use **Disable Motion** after the test, then close the GUI and stop the launch.
 
 Do not request simultaneous dual-arm motion until both single-arm GUI motion tests pass
-and the physical base transforms in `robot_placement.yaml` are measured and updated.
+and a reviewed physical placement candidate has been activated.
+
+### Manual five-point table calibration
+
+The repository includes an operator-driven calibration tool that never connects to or
+moves a robot. Mark five labelled tabletop points, touch the same five points with the
+left and right TCP using the teach pendants, and enter the displayed UFRAME 0 XYZ values:
+
+```bash
+cd ~/dual_crx_ros2
+./scripts/table_calibration_gui.py
+```
+
+The five marks are `CENTER` plus the four signed square corners (`X_PLUS_Y_PLUS`,
+`X_PLUS_Y_MINUS`, `X_MINUS_Y_PLUS`, `X_MINUS_Y_MINUS`). The simple GUI needs only five
+left XYZ and five right XYZ readings; it infers the table origin, axes, and square size.
+It also provides separate signed left/right EEF Z offsets, session load/save, solve, and
+explicit activation. The equivalent CLI is:
+
+```bash
+./scripts/table_calibration_tool.py collect
+```
+
+It fits each arm independently, reports per-point/RMS/cross-arm error, and writes a
+candidate. A valid candidate must be reviewed and explicitly activated before physical
+dual-arm launch. See [the five-point calibration guide](docs/table_calibration_5point.md)
+for point layout, TCP/frame requirements, resume/edit commands, and virtual-workcell
+integration.
+
+GUI buttons have deliberately separate meanings:
+
+1. **Save session** preserves entered measurements but does not change the workcell.
+2. **Solve + save candidate** computes both base transforms and quality metrics.
+3. **Activate candidate** writes a reviewed `valid: true` result to the local physical
+   placement file. Restart the physical launch to apply it.
+
+The signed EEF correction uses `contact Z = entered Z + EEF Z offset`. For example, a
+contact tip 35 mm below the displayed EEF position uses `-35 mm`. This constant XYZ-only
+correction assumes the offset is along the selected measurement-frame Z; use a calibrated
+UTOOL at the physical tip when tool-local Z changes orientation between samples.
+
+The active physical placement is stored locally at
+`src/dual_crx_description/config/robot_placement_physical.yaml`. Sessions, candidates,
+and this active file are git-ignored because they are installation-specific. Combined
+physical launch fails safe if the file is absent or not marked valid; it never silently
+loads the mock placement.
+
+#### Physical calibration record: 2026-09-02
+
+The current laboratory placement was derived from the centre/four-corner pattern with a
+`-35 mm` EEF Z offset for both arms. The reviewed acceptance limits were 5 mm RMS, 6 mm
+maximum point error, and 3 mm cross-arm error:
+
+- left: RMS 3.76 mm, maximum 5.22 mm
+- right: RMS 3.60 mm, maximum 4.99 mm
+- maximum left/right disagreement: 1.75 mm
+- inferred square side length: 147.01 mm
+
+This is accepted as a coarse physical/RViz calibration. Use at least 15 mm additional
+clearance for initial physical validation and do not treat it as a precision contact or
+collision-clearance certificate.
 
 ## Important: mock and physical commands are different
 
@@ -148,7 +214,7 @@ and the physical base transforms in `robot_placement.yaml` are measured and upda
 | Execute a trajectory in mock | `dual_crx_demo ... execute:=true` | No |
 | Check a physical connection | `launch_real.sh --arm ...` | No; defaults to `motion_control=0` |
 | Request physical motion authority | add `--enable-motion --yes-i-understand` | Authority only; the launch itself sends no target |
-| Start the physical GUI stack | `./scripts/launch_real_gui.sh` | No; GUI starts connection-only |
+| Start the physical GUI stack with RViz | `./scripts/launch_real_gui.sh --launch-rviz` | No; GUI starts connection-only |
 | Enable motion from the physical GUI | Use the per-arm `Enable Motion` button | Yes; only for the selected arm |
 
 Never use the fixed mock demo target as the first physical-robot motion. The values in
@@ -440,7 +506,7 @@ the launch itself. Start the GUI stack in connection-only mode:
 
 ```bash
 cd ~/dual_crx_ros2
-./scripts/launch_real_gui.sh
+./scripts/launch_real_gui.sh --launch-rviz
 ```
 
 Then start the GUI in a second terminal:
