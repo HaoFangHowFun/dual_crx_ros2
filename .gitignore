@@ -36,3 +36,4 @@ Thumbs.db
 calibration_sessions/
 calibration_candidates/
 src/dual_crx_description/config/robot_placement_physical.yaml
+src/dual_crx_description/config/robot_placement_physical.yaml.backup*

@@ -69,7 +69,9 @@ The GUI Cartesian pose tab supports one arm at a time. The frame selector resolv
 either `world` (identical to the calibrated `table_frame`) or the selected arm's
 `left_base_link/right_base_link`. Switching frames transforms the displayed pose so it
 does not silently reinterpret the same numbers. `Copy current TCP` queries the selected
-TF directly. Targets use metres and a normalized quaternion. Validate checks ownership,
+TF directly. Targets use metres and fixed-axis XYZ roll, pitch, and yaw in degrees
+relative to the selected reference frame. The GUI converts orientation to a normalized
+quaternion for ROS commands and converts copied TCP poses back to RPY. Validate checks ownership,
 arm/TCP pairing, timestamp, TF, finite values and workspace guard; Plan adds MoveIt
 position/orientation constraints for collision-aware IK/planning; Execute dispatches
 only the stored approved plan.

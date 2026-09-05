@@ -45,7 +45,8 @@ left_arm:
   xyz:
   - -0.41753014825629947
   - -0.5522928464841957
-  - 0.25506070218176946
+  # Manual table-Z correction: original 0.25506070218176946 m minus 0.185 m.
+  - 0.07006070218176946
   rpy:
   - 0.01510771115559298
   - 0.008129018481338504
@@ -54,6 +55,7 @@ right_arm:
   xyz:
   - 0.2559220457996696
   - -0.5374404144251925
+  # Right arm restored by +0.185 m after operator alignment check.
   - 0.06217679014864952
   rpy:
   - 0.0028907951805920737
@@ -106,3 +108,18 @@ calibration_notes:
   eef_z_offset: Both entered EEF positions were corrected by -35 mm along measurement-frame Z.
   intended_use: Coarse physical and RViz alignment; not a precision contact certificate.
   initial_clearance: Use at least 15 mm additional clearance for first physical validation.
+
+# Applied once to saved table_from_base_link translations, not by the loader.
+# Left retains -185 mm in table Z; right was restored to its original calibration.
+# The solver's separate base_link -> FANUC wbase conversion remains unchanged.
+manual_table_z_adjustment:
+  confirmed_by_operator: true
+  translation_frame: table_frame
+  translation_delta_m_by_arm:
+    left_arm: [0.0, 0.0, -0.185]
+    right_arm: [0.0, 0.0, 0.0]
+  original_base_z_m:
+    left_arm: 0.25506070218176946
+    right_arm: 0.06217679014864952
+  reason: Operator reported left alignment improved; right adjustment reverted by adding 185 mm back.
+  validation: Operator reports alignment good after right restoration. Quality metrics describe the original fit, not a new quantitative validation.

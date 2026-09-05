@@ -134,3 +134,40 @@ def test_headless_state_copy_jog_and_physical_state_gates_widgets():
     window.update_state(msg)
     assert window.targets[0][1].isEnabled()
     window.deleteLater(); app.processEvents()
+
+
+def test_cartesian_rpy_degrees_copy_and_command():
+    import math
+    import pytest
+    from geometry_msgs.msg import PoseStamped
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    window = MainWindow(FakeApi())
+    pose = PoseStamped()
+    pose.header.frame_id = "world"
+    pose.pose.orientation.z = math.sqrt(0.5)
+    pose.pose.orientation.w = math.sqrt(0.5)
+    window._populate_cartesian_fields(pose)
+    assert window.cart_fields["yaw"].value() == pytest.approx(90.0)
+    assert window.cart_fields["roll"].value() == pytest.approx(0.0)
+    assert window.cart_fields["pitch"].value() == pytest.approx(0.0)
+    window.cart_fields["yaw"].setValue(0.0)
+    window.cart_fields["roll"].setValue(180.0)
+    window.plan_cartesian()
+    call = next(call for call in window.api.calls if call[0] == "cartesian")
+    q = call[1][3].pose.orientation
+    assert (q.x, q.y, q.z, q.w) == pytest.approx((1.0, 0.0, 0.0, 0.0), abs=1e-12)
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_rpy_round_trip_preserves_mixed_and_singular_rotations():
+    import pytest
+    from geometry_msgs.msg import Quaternion
+    from dual_crx_gui.app import quaternion_to_rpy_degrees, rpy_degrees_to_quaternion
+
+    for angles in ((30, 45, -60), (25, 90, 70), (25, -90, 70), (0, 89.999, 180)):
+        original = rpy_degrees_to_quaternion(*angles)
+        q = Quaternion(x=original[0], y=original[1], z=original[2], w=original[3])
+        restored = rpy_degrees_to_quaternion(*quaternion_to_rpy_degrees(q))
+        assert abs(sum(a*b for a, b in zip(original, restored))) == pytest.approx(1.0, abs=1e-10)

@@ -23,6 +23,35 @@ from tf2_ros import Buffer, TransformException, TransformListener
 LEFT, RIGHT, BOTH = 1, 2, 3
 
 
+def quaternion_to_rpy_degrees(q):
+    """Return fixed-axis XYZ roll, pitch, yaw in degrees."""
+    norm = math.sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w)
+    if norm == 0.0:
+        return 0.0, 0.0, 0.0
+    x, y, z, w = (value / norm for value in (q.x, q.y, q.z, q.w))
+    sin_pitch = max(-1.0, min(1.0, 2.0 * (w*y - z*x)))
+    if abs(sin_pitch) >= 1.0 - 1e-12:
+        # At gimbal lock choose yaw=0 and preserve the equivalent rotation.
+        roll = math.atan2(2.0 * (w*x - y*z), 1.0 - 2.0 * (x*x + z*z))
+        pitch = math.copysign(math.pi / 2.0, sin_pitch)
+        yaw = 0.0
+    else:
+        roll = math.atan2(2.0 * (w*x + y*z), 1.0 - 2.0 * (x*x + y*y))
+        pitch = math.asin(sin_pitch)
+        yaw = math.atan2(2.0 * (w*z + x*y), 1.0 - 2.0 * (y*y + z*z))
+    return tuple(math.degrees(angle) for angle in (roll, pitch, yaw))
+
+
+def rpy_degrees_to_quaternion(roll, pitch, yaw):
+    """Convert fixed-axis XYZ angles in degrees to quaternion XYZW."""
+    r, p, y = (math.radians(angle) / 2.0 for angle in (roll, pitch, yaw))
+    cr, sr = math.cos(r), math.sin(r)
+    cp, sp = math.cos(p), math.sin(p)
+    cy, sy = math.cos(y), math.sin(y)
+    return (sr*cp*cy - cr*sp*sy, cr*sp*cy + sr*cp*sy,
+            cr*cp*sy - sr*sp*cy, cr*cp*cy + sr*sp*sy)
+
+
 class RosApi(QtCore.QObject):
     state_received = QtCore.pyqtSignal(object)
     robot_status_received = QtCore.pyqtSignal(int, object)
@@ -516,11 +545,16 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(self.cart_frame_resolved, 0, 4, 1, 3)
         self.cart_fields = {}
         defaults = {"x": 0.0, "y": 0.0, "z": 0.0,
-                    "qx": 0.0, "qy": 0.0, "qz": 0.0, "qw": 1.0}
+                    "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
         for i, (name, value) in enumerate(defaults.items()):
-            grid.addWidget(QtWidgets.QLabel(name), 1, i)
+            angular = name in ("roll", "pitch", "yaw")
+            grid.addWidget(QtWidgets.QLabel(f"{name.title()} (deg)" if angular else name), 1, i)
             field = QtWidgets.QDoubleSpinBox(); field.setRange(-5.0, 5.0)
             field.setDecimals(6); field.setSingleStep(0.001); field.setValue(value)
+            if angular:
+                field.setRange(-360.0, 360.0)
+                field.setSingleStep(1.0)
+                field.setToolTip("Fixed-axis X/Y/Z roll/pitch/yaw in degrees, relative to the selected reference frame")
             grid.addWidget(field, 2, i); self.cart_fields[name] = field
         buttons = QtWidgets.QHBoxLayout()
         for text, callback in (("Copy current TCP", self.copy_current_pose),
@@ -668,8 +702,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _populate_cartesian_fields(self, pose):
         p, q = pose.pose.position, pose.pose.orientation
+        roll, pitch, yaw = quaternion_to_rpy_degrees(q)
         for name, value in (("x", p.x), ("y", p.y), ("z", p.z),
-                            ("qx", q.x), ("qy", q.y), ("qz", q.z), ("qw", q.w)):
+                            ("roll", roll), ("pitch", pitch), ("yaw", yaw)):
             self.cart_fields[name].setValue(value)
 
     def _cartesian_frame_changed(self, *_):
@@ -710,10 +745,9 @@ class MainWindow(QtWidgets.QMainWindow):
         target.pose.position.x = self.cart_fields["x"].value()
         target.pose.position.y = self.cart_fields["y"].value()
         target.pose.position.z = self.cart_fields["z"].value()
-        target.pose.orientation.x = self.cart_fields["qx"].value()
-        target.pose.orientation.y = self.cart_fields["qy"].value()
-        target.pose.orientation.z = self.cart_fields["qz"].value()
-        target.pose.orientation.w = self.cart_fields["qw"].value()
+        q = target.pose.orientation
+        q.x, q.y, q.z, q.w = rpy_degrees_to_quaternion(
+            *(self.cart_fields[name].value() for name in ("roll", "pitch", "yaw")))
         return target
 
     def _invalidate_cartesian_plan(self, *_):
